@@ -30,18 +30,18 @@ PROVIDER_CONFIG = {
         "base_url": "https://api.x.ai/v1",
         "api_key": GROK_API_KEY,
         "models": {
-            "fast": "grok-4-1-fast",
-            "standard": "grok-3-mini",
-            "power": "grok-3",
+            "fast": "grok-2-mini",
+            "standard": "grok-2",
+            "power": "grok-2",
         },
     },
     "anthropic": {
         "base_url": "https://api.anthropic.com/v1",
         "api_key": ANTHROPIC_API_KEY,
         "models": {
-            "fast": "claude-haiku-4-5-20260301",
-            "standard": "claude-sonnet-4-6-20260401",
-            "power": "claude-opus-4-6-20260401",
+            "fast": "claude-3-5-haiku-latest",
+            "standard": "claude-3-5-sonnet-latest",
+            "power": "claude-3-5-sonnet-latest",
         },
     },
     "openai": {
@@ -58,8 +58,8 @@ PROVIDER_CONFIG = {
         "api_key": GOOGLE_API_KEY,
         "models": {
             "fast": "gemini-2.0-flash",
-            "standard": "gemini-2.0-pro-exp-02-05",
-            "power": "gemini-2.0-pro-exp-02-05",
+            "standard": "gemini-2.5-pro-preview-03-25",
+            "power": "gemini-2.5-pro-preview-03-25",
         },
     },
     "local": {
