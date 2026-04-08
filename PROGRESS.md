@@ -4,24 +4,23 @@ This file is the "Source of Truth" for all AI agents working on Tendril. **Updat
 
 ---
 
-## 🚀 Current Milestone: Phase 1 — Kernel + Chronicler
-**Goal:** Implement the Chronicler service and the `/status` endpoint to make Tendril truly self-documenting.
+## 🚀 Current Milestone: Phase 3 — Enterprise Memory & Testing
+**Goal:** Enhance the Dreamer loop, persist RAG memory securely for multi-tenant scalability, and integrate the TestRunner for automated CI-level feedback during self-edits.
 
 | Workstream | Lead Agent | Status | Notes |
 |---|---|---|---|
-| **Kernel Core** | Antigravity | 🟢 Active | Phase 0 complete. Building Chronicler & /status. |
+| **Kernel Core** | Antigravity | 🟢 Active | Phase 1 & 2 complete. Starting Phase 3 (Memory / Testing). |
 | **Branding** | Antigravity | 🟢 Complete | Name/Logo/Colors locked in. UI updated. |
-| **Marketing** | Antigravity | ⚪ Queued | Awaiting "Self-Building" proof clip. |
+| **Marketing** | Antigravity | 🟡 Waitlist | Waitlist API live. Awaiting external landing page design. |
 
 ---
 
 ## 🛠️ Active Tasks
 
-- [x] **Phase 0 Foundation:** Security fixes, config modernization, and async logic.
-- [/] **Feature:** "The Chronicler" — Auto-updating progress logs for marketing/dev.
-- [ ] **Feature:** `/status` Endpoint — Self-reporting version and pulse.
-- [x] **Branding:** Design System and UI Modernization (Root Agent identity).
-- [x] **Refactor:** "No Underscore" naming convention implementation.
+- [x] **Phase 1 & 2:** Chronicler, `/status`, Unified Credits architecture, and Waitlist API.
+- [ ] **Feature:** Secure TestRunner Integration (Automated quality gates for `/edit`).
+- [ ] **Feature:** Multi-tenant RAG (Isolating vector spaces per `session_id`).
+- [ ] **Feature:** The "Dreamer" Loop verification and UI visibility.
 
 ---
 
