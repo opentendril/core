@@ -21,11 +21,14 @@ import logging
 import os
 import asyncio
 import json
+import dotenv
 from datetime import datetime
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -35,13 +38,15 @@ from pydantic import BaseModel, Field
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from .config import validate_config, LOG_DIR
-from .llm_router import LLMRouter
+from .llmrouter import LLMRouter
 from .memory import Memory
-from .skills_manager import SkillsManager
+from .skillsmanager import SkillsManager
 from .tendril import Orchestrator
 from .editor import FileEditor
 from .approval import ApprovalGate
 from .dreamer import dream
+from .credits import credit_manager
+from .waitlist import router as waitlist_router
 
 # --- Setup ---
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -71,16 +76,36 @@ orchestrator = Orchestrator(memory, skills_manager, llm_router, editor, approval
 scheduler = AsyncIOScheduler()
 scheduler.add_job(dream, "interval", hours=1, args=[memory, llm_router])
 
-@app.on_event("startup")
-async def start_scheduler():
-    scheduler.start()
-    logger.info("⏰ Background dreamer scheduler started.")
-
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/hour"])
 
 app = FastAPI(title="Tendril", version="0.1.0", description="Self-building AI orchestrator")
 app.state.limiter = limiter
+
+# Mount static assets
+import os
+os.makedirs("static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Add CORS for external lead capture (e.g. from Framer/Webflow)
+# For production, restrict this to your actual marketing domain (e.g., https://opentendril.com)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Update this before hard launch!
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+app.state.limiter = limiter
+
+# Include routers
+app.include_router(waitlist_router)
+
+@app.on_event("startup")
+async def start_scheduler():
+    scheduler.start()
+    logger.info("⏰ Background dreamer scheduler started.")
 
 
 @app.exception_handler(RateLimitExceeded)
@@ -104,7 +129,7 @@ async def root():
     return RedirectResponse(url="/chat")
 
 
-# --- Health ---
+# --- Health & Status ---
 @app.get("/health")
 async def health():
     return {
@@ -115,18 +140,46 @@ async def health():
     }
 
 
+@app.get("/status")
+async def get_status():
+    """Detailed system status for the Root Agent."""
+    return {
+        "kernel": {
+            "name": "Tendril",
+            "version": "0.1.0",
+            "identity": "The Root Agent",
+            "uptime": "Calculating...", # Placeholder for future uptime logic
+        },
+        "inventory": {
+            "skills": skills_manager.skills,
+            "memory_type": "Chroma (Local)",
+            "credit_mode": credit_manager.mode.value,
+        },
+        "connectivity": {
+            "llm_gateways": llm_router.available_providers,
+            "database": "Postgres (PGVector)",
+            "cache": "Redis",
+        },
+        "pulse": {
+            "last_active": datetime.now().isoformat(),
+            "log_path": os.path.join(LOG_DIR, "tendril.log"),
+        }
+    }
+
+
 # --- Chat UI ---
 CHAT_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tendril | Self-Building Orchestrator</title>
-    <meta name="description" content="Tendril — multi-LLM self-building AI orchestrator with enterprise security">
+    <title>Tendril | The Root Agent</title>
+    <meta name="description" content="Tendril — The Root Agent. OpenClaw's successor that fixes itself while it works.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+    <link rel="icon" type="image/png" href="/static/tendril-logo.png">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -142,7 +195,8 @@ CHAT_HTML = """<!DOCTYPE html>
             --accent: #10b981;
             --accent-dim: rgba(16, 185, 129, 0.15);
             --accent-glow: rgba(16, 185, 129, 0.3);
-            --danger: #ef4444;
+            --danger: #ef4444; /* Lobster red */
+            --accent-secondary: #ef4444; /* OpenClaw legacy */
             --radius: 16px;
             --radius-sm: 10px;
             --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -250,6 +304,38 @@ CHAT_HTML = """<!DOCTYPE html>
         .btn-secondary:hover {
             background: var(--border);
             color: var(--text-primary);
+        }
+
+        .credits-widget {
+            margin-top: 12px;
+            padding: 12px;
+            background: linear-gradient(135deg, rgba(234, 179, 8, 0.1), rgba(234, 179, 8, 0.02));
+            border: 1px solid rgba(234, 179, 8, 0.2);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .credits-widget.local {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.02));
+            border-color: rgba(16, 185, 129, 0.2);
+        }
+
+        .credits-val {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .credits-widget.local .credits-val { color: var(--accent); }
+        .credits-widget:not(.local) .credits-val { color: #eab308; } /* Gold color for hosted */
+
+        .credits-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
         }
 
         /* Main Chat */
@@ -465,11 +551,11 @@ CHAT_HTML = """<!DOCTYPE html>
         }
 
         .btn-send {
-            background: var(--accent);
+            background: var(--accent-secondary);
             border: none;
             border-radius: 12px;
             padding: 14px 24px;
-            color: #000;
+            color: #fff;
             font-size: 13px;
             font-weight: 700;
             font-family: var(--font-sans);
@@ -489,6 +575,67 @@ CHAT_HTML = """<!DOCTYPE html>
             letter-spacing: 0.15em;
         }
 
+        /* Settings Panel */
+        .settings-panel {
+            background: rgba(24, 24, 27, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            max-width: 500px;
+            margin: 40px auto;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 0.3s ease;
+        }
+        .settings-panel h2 {
+            margin-bottom: 24px;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .form-group { margin-bottom: 16px; text-align: left; }
+        .form-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-family: var(--font-mono);
+        }
+        .form-input {
+            width: 100%;
+            padding: 12px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            outline: none;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus { border-color: var(--accent); }
+        .settings-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 32px;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: var(--font-sans);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-primary:hover { filter: brightness(1.1); }
+        
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar { display: none; }
@@ -509,7 +656,15 @@ CHAT_HTML = """<!DOCTYPE html>
              hx-get="/chat/history" hx-trigger="load">
         </div>
         <div class="sidebar-footer">
+            <a href="#" class="btn-secondary" style="margin-bottom: 8px; display: block; text-align: center;" 
+               hx-get="/settings" hx-target="#chat-messages" hx-swap="innerHTML">⚙️ Configuration</a>
             <a href="/health" class="btn-secondary" target="_blank">System Status</a>
+            <div class="credits-widget local" hx-get="/v1/credits" hx-trigger="load">
+                <div>
+                    <div class="credits-val">∞</div>
+                    <div class="credits-label">Local Credits</div>
+                </div>
+            </div>
         </div>
     </aside>
 
@@ -517,6 +672,7 @@ CHAT_HTML = """<!DOCTYPE html>
         <header class="topbar">
             <div class="topbar-left">
                 <div class="status-dot"></div>
+                <img src="/static/tendril-logo.png" alt="Tendril Logo" style="height: 24px; width: 24px;">
                 <h1>Tendril</h1>
             </div>
             <select id="provider-select" class="provider-select">
@@ -527,8 +683,9 @@ CHAT_HTML = """<!DOCTYPE html>
 
         <div id="chat-messages" class="messages">
             <div class="welcome">
-                <h3>What shall we build?</h3>
-                <p>Self-building orchestrator at your service.</p>
+                <img src="/static/tendril-logo.png" alt="Tendril Logo" style="height: 80px; width: 80px; margin-bottom: 24px; opacity: 1;">
+                <h3>I am the Root Agent.</h3>
+                <p>Turn your frustrations into skills via <code style="background:var(--bg-tertiary);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">/edit</code>.</p>
             </div>
         </div>
 
@@ -544,7 +701,7 @@ CHAT_HTML = """<!DOCTYPE html>
                            required autocomplete="off" class="chat-input" id="chat-input">
                     <button type="submit" class="btn-send">Send</button>
                 </form>
-                <p class="powered-by">Powered by Tendril v0.1 — Multi-LLM Orchestrator</p>
+                <p class="powered-by">Tendril v0.1 — The agent that builds agents.</p>
             </div>
         </div>
     </main>
@@ -634,19 +791,52 @@ async def stream_chat(message: str, provider: str = "default"):
             memory.store_convo("default", "assistant", response_text)
 
             # Format response (basic markdown-like rendering)
-            formatted = safe(response_text)
+            # 1. Escape for security
+            escaped_text = safe(response_text)
+            
+            # 2. Simple Markdown replacements
+            # Handle bold (simple regex-like approach)
+            import re
+            formatted = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', escaped_text)
+            # Handle inline code
+            formatted = re.sub(r'`(.*?)`', r'<code>\1</code>', formatted)
+            # Handle code blocks
+            formatted = re.sub(r'```(.*?)\n(.*?)\n?```', r'<pre><code>\2</code></pre>', formatted, flags=re.DOTALL)
+            
+            # 3. Paragraphs and breaks
             formatted = formatted.replace("\n\n", "</p><p>")
             formatted = formatted.replace("\n", "<br>")
             formatted = f"<p>{formatted}</p>"
 
             # Stream word-by-word for UX
+            # Note: We still send the full accumulated text as it grows
             words = response_text.split(" ")
             accumulated = ""
             for i, word in enumerate(words):
                 accumulated += word + (" " if i < len(words) - 1 else "")
-                display = safe(accumulated).replace("\n", "<br>")
+                
+                # Re-run formatting for the accumulated buffer
+                current_safe = safe(accumulated)
+                current_formatted = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', current_safe)
+                current_formatted = re.sub(r'`(.*?)`', r'<code>\1</code>', current_formatted)
+                
+                # Special handling for open code blocks in partial streams
+                if "```" in current_formatted:
+                    # Very primitive attempt to close open blocks for the UI
+                    if current_formatted.count("```") % 2 != 0:
+                        current_formatted += "\n... (coding) ..."
+                    
+                    current_formatted = re.sub(
+                        r'```(.*?)\n(.*?)(?:```|$)', 
+                        r'<pre><code>\2</code></pre>', 
+                        current_formatted, 
+                        flags=re.DOTALL
+                    )
+                
+                current_formatted = current_formatted.replace("\n\n", "</p><p>").replace("\n", "<br>")
+                display = f"<p>{current_formatted}</p>"
                 yield f'data: <div class="msg-bubble assistant">{display}</div>\n\n'
-                await asyncio.sleep(0.015)
+                await asyncio.sleep(0.01)
 
             yield "event: done\ndata: done\n\n"
 
@@ -684,6 +874,10 @@ async def edit_endpoint(req: EditRequest):
     4. Applies the change (auto-approved in dev mode)
     """
     try:
+        # Credit Check
+        if not credit_manager.validate_request():
+            raise HTTPException(status_code=402, detail="Insufficient credits.")
+            
         # Read current file
         try:
             current_content = editor.read(req.file)
@@ -725,12 +919,32 @@ Respond with ONLY the complete new file content. No explanations, no markdown fe
         )
 
         if approval_req.status.value in ("approved", "auto_approved"):
+            # 3. Apply Change
             result = editor.write(req.file, new_content)
+            
+            # 4. Sandbox Syntax Check
+            check_msg = "Skipped syntax check"
+            if req.file.endswith(".py"):
+                # We use the Orchestrator's tester to run a safe check
+                test_output = await orchestrator.tester.run_command(f"python -m py_compile {req.file}", safe=True)
+                if "❌" in test_output:
+                    # Rolling back isn't fully implemented, so we log the warning for the user
+                    check_msg = f"Syntax error detected: {test_output}"
+                else:
+                    check_msg = "Syntax check passed."
+
+            # 5. Auto-Commit via Moat Loop
+            commit_msg = f"tendril(/edit): {req.instruction[:50]}"
+            # git_commit tool in orchestrator triggers chronicler automatically
+            git_result = orchestrator.git.commit_changes(commit_msg)
+
             return {
                 "status": "applied",
                 "file": req.file,
                 "action": result["action"],
                 "diff": diff,
+                "test": check_msg,
+                "commit": git_result,
                 "approval": approval_req.status.value,
             }
         else:
@@ -769,6 +983,71 @@ async def chat_api(req: ChatRequest):
     except Exception as e:
         logger.error(f"API error: {e}")
         raise HTTPException(status_code=500, detail="Internal error processing request.")
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def get_settings():
+    return f'''
+    <div class="settings-panel">
+        <h2>Kernel Configuration</h2>
+        <form hx-post="/settings/save" hx-target="#chat-messages" hx-swap="innerHTML">
+            <div class="form-group">
+                <label>TENDRIL_WORKSPACE_ROOT</label>
+                <input type="text" name="workspace" class="form-input" value="{safe(os.getenv('TENDRIL_WORKSPACE_ROOT', '/app'))}" placeholder="/app">
+            </div>
+            <div class="form-group">
+                <label>GITHUB_TOKEN</label>
+                <input type="password" name="github_token" class="form-input" value="{safe(os.getenv('GITHUB_TOKEN', ''))}" placeholder="ghp_...">
+            </div>
+            <div class="form-group">
+                <label>GROK_API_KEY</label>
+                <input type="password" name="grok_key" class="form-input" value="{safe(os.getenv('GROK_API_KEY', ''))}" placeholder="xai-...">
+            </div>
+            <div class="settings-actions">
+                <button type="button" class="btn-secondary" style="width: auto;" onclick="window.location.reload()">Cancel</button>
+                <button type="submit" class="btn-primary">Save Settings</button>
+            </div>
+        </form>
+    </div>
+    '''
+
+@app.post("/settings/save", response_class=HTMLResponse)
+async def save_settings(workspace: str = Form(""), grok_key: str = Form(""), github_token: str = Form("")):
+    env_file = ".env"
+    
+    # Touch .env if missing
+    if not os.path.exists(env_file):
+        open(env_file, 'a').close()
+        
+    dotenv.set_key(env_file, "TENDRIL_WORKSPACE_ROOT", workspace)
+    dotenv.set_key(env_file, "GROK_API_KEY", grok_key)
+    dotenv.set_key(env_file, "GITHUB_TOKEN", github_token)
+    
+    os.environ["TENDRIL_WORKSPACE_ROOT"] = workspace
+    os.environ["GROK_API_KEY"] = grok_key
+    os.environ["GITHUB_TOKEN"] = github_token
+    
+    return '''
+    <div class="settings-panel" style="text-align: center;">
+        <h2 style="color: var(--accent);">✅ Configuration Saved</h2>
+        <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 24px;">Root variables have been persisted and loaded into the active kernel memory.</p>
+        <button type="button" class="btn-primary" onclick="window.location.reload()">Return to Kernel</button>
+    </div>
+    '''
+
+@app.get("/v1/credits", response_class=HTMLResponse)
+async def get_credits_ui():
+    """Returns HTML snippet for the credits widget based on real balance."""
+    balance = credit_manager.get_balance()
+    is_local = credit_manager.mode.value == "local"
+    
+    widget_class = "credits-widget local" if is_local else "credits-widget"
+    label = "Local Compute" if is_local else "Cloud Credits"
+    
+    return f'''<div>
+                <div class="credits-val">{safe(balance)}</div>
+                <div class="credits-label">{safe(label)}</div>
+              </div>'''
 
 
 # --- Approval Endpoints ---

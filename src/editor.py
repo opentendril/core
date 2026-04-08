@@ -14,8 +14,10 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+from .config import WORKSPACE_ROOT
+
 # Sandboxed root — the editor cannot escape this directory
-SANDBOX_ROOT = "/app/src"
+SANDBOX_ROOT = WORKSPACE_ROOT
 ALLOWED_EXTENSIONS = {
     ".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css",
     ".json", ".yml", ".yaml", ".toml", ".md", ".txt",
@@ -201,6 +203,37 @@ class FileEditor:
         new_content = content.replace(search, replace, 1)
 
         return self.write(filepath, new_content)
+
+    def search_project(self, query: str, directory: str = "") -> list[dict]:
+        """
+        Search for a string across all allowed files in the sandbox.
+        Useful for finding where a variable, error, or function is used.
+        """
+        resolved = self._resolve_path(directory or ".")
+        results = []
+
+        for root, dirs, files in os.walk(resolved):
+            dirs[:] = [d for d in dirs if d not in BLOCKED_PATTERNS]
+            
+            for fname in files:
+                ext = Path(fname).suffix.lower()
+                if ext in ALLOWED_EXTENSIONS:
+                    full_path = os.path.join(root, fname)
+                    rel_path = os.path.relpath(full_path, self.sandbox_root)
+                    
+                    try:
+                        with open(full_path, 'r', encoding='utf-8') as f:
+                            for i, line in enumerate(f, 1):
+                                if query in line:
+                                    results.append({
+                                        "file": rel_path,
+                                        "line": i,
+                                        "content": line.strip()[:100] # Truncate for safety
+                                    })
+                    except Exception as e:
+                        logger.warning(f"Could not search {rel_path}: {e}")
+                        
+        return results
 
     @property
     def history(self) -> list[dict]:

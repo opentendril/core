@@ -26,6 +26,7 @@ services:
 
   tendril:
     build: .
+    user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "8080:8080"
     environment:
@@ -41,16 +42,23 @@ services:
       DEFAULT_LLM_PROVIDER: ${DEFAULT_LLM_PROVIDER:-grok}
       LOCAL_INFERENCE_URL: ${LOCAL_INFERENCE_URL:-http://inference:8000/v1}
       LOCAL_MODEL_NAME: ${LOCAL_MODEL_NAME:-Qwen/Qwen3-8B-AWQ}
+      TENDRIL_WORKSPACE_ROOT: ${TENDRIL_WORKSPACE_ROOT:-/app}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
+      # Default: Mount internal source code for the "Root Agent" Moat loop
       - ./src:/app/src
       - ./skills:/app/skills
       - ./data:/app/data
       - ./logs:/app/logs
+      - ./static:/app/static
+      # --- Day 1 External Codebase Mount Example ---
+      # To edit an external repo, set TENDRIL_WORKSPACE_ROOT=/workspace in .env
+      # and uncomment the volume mount below pointing to your target repo:
+      # - /path/to/external/repo:/workspace
     restart: unless-stopped
 
   # GPU Inference (optional — uncomment when NVIDIA GPU is available)

@@ -39,9 +39,11 @@ EMBEDDING_DIM = 384
 
 # Project paths (inside Docker container)
 PROJECT_ROOT = "/app"
-SRC_DIR = os.path.join(PROJECT_ROOT, "src")
-SKILLS_DIR = os.path.join(PROJECT_ROOT, "skills")
-DYNAMIC_SKILLS_DIR = os.path.join(PROJECT_ROOT, "data", "dynamic_skills")
+WORKSPACE_ROOT = os.getenv("TENDRIL_WORKSPACE_ROOT", PROJECT_ROOT)
+
+SRC_DIR = os.path.join(WORKSPACE_ROOT, "src")
+SKILLS_DIR = os.path.join(WORKSPACE_ROOT, "skills")
+DYNAMIC_SKILLS_DIR = os.path.join(PROJECT_ROOT, "data", "dynamic-skills")
 LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
 
 # --- Validation ---

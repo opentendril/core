@@ -10,7 +10,7 @@ from .config import SECRET_KEY
 class SkillsManager:
     def __init__(self):
         self.skills_dir = "/app/skills"
-        self.dynamic_dir = "/app/data/dynamic_skills"
+        self.dynamic_dir = "/app/data/dynamic-skills"
         self.skills: List[Dict] = []
         self.load_skills()
 
