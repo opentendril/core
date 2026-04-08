@@ -6,6 +6,7 @@ insights that are stored in long-term memory.
 """
 
 import logging
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -15,11 +16,11 @@ from .memory import Memory
 logger = logging.getLogger(__name__)
 
 
-def dream(memory: Memory, llm_router=None):
+async def dream(memory: Memory, llm_router=None):
     """
     Review recent interactions and generate insights.
 
-    This is a SYNC function — called from BackgroundScheduler.
+    This is an ASYNC function — called from AsyncIOScheduler.
     Uses the LLM Router if available, otherwise skips silently.
     """
     if llm_router is None:
@@ -46,7 +47,7 @@ def dream(memory: Memory, llm_router=None):
             "Insights (be concise, actionable):"
         )
 
-        resp = llm.invoke(prompt)
+        resp = await asyncio.to_thread(llm.invoke, prompt)
         if resp.content:
             memory.store_longterm(
                 f"[Dream Insight] {resp.content}",

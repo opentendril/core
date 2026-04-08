@@ -23,12 +23,13 @@ LOCAL_MODEL_NAME: str = os.getenv("LOCAL_MODEL_NAME", "Qwen/Qwen3-8B-AWQ")
 LOCAL_INFERENCE_URL: str = os.getenv("LOCAL_INFERENCE_URL", "http://inference:8000/v1")
 
 # --- Infrastructure ---
+POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "")
 REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
 SECRET_KEY: str = os.getenv("SECRET_KEY", "")
 
-# Postgres uses default user 'postgres' from the pgvector container
-POSTGRES_URL = f"postgresql+psycopg://postgres:{POSTGRES_PASSWORD}@postgres:5432/postgres"
+# Postgres connection — user is configurable for production
+POSTGRES_URL = f"postgresql+psycopg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@postgres:5432/postgres"
 REDIS_URL = f"redis://:{REDIS_PASSWORD}@redis:6379/0" if REDIS_PASSWORD else "redis://redis:6379/0"
 DB_CONNECTION = POSTGRES_URL
 
@@ -38,10 +39,15 @@ EMBEDDING_DIM = 384
 
 # Project paths (inside Docker container)
 PROJECT_ROOT = "/app"
-SRC_DIR = os.path.join(PROJECT_ROOT, "src")
-SKILLS_DIR = os.path.join(PROJECT_ROOT, "skills")
-DYNAMIC_SKILLS_DIR = os.path.join(PROJECT_ROOT, "data", "dynamic_skills")
+WORKSPACE_ROOT = os.getenv("TENDRIL_WORKSPACE_ROOT", PROJECT_ROOT)
+
+SRC_DIR = os.path.join(WORKSPACE_ROOT, "src")
+SKILLS_DIR = os.path.join(WORKSPACE_ROOT, "skills")
+DYNAMIC_SKILLS_DIR = os.path.join(PROJECT_ROOT, "data", "dynamic-skills")
 LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
+
+# SDLC Pipeline Configuration
+STRICT_LINTING: bool = os.getenv("STRICT_LINTING", "false").lower() == "true"
 
 # --- Validation ---
 def validate_config():

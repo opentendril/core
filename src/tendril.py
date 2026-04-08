@@ -14,12 +14,16 @@ from typing import Optional
 
 from langchain_core.tools import tool
 
-from .config import SECRET_KEY, SRC_DIR
-from .llm_router import LLMRouter
+from .config import SECRET_KEY, WORKSPACE_ROOT
+from .llmrouter import LLMRouter
 from .memory import Memory
-from .skills_manager import SkillsManager
+from .skillsmanager import SkillsManager
 from .editor import FileEditor
 from .approval import ApprovalGate
+from .gitmanager import GitManager
+from .testrunner import TestRunner
+from .credits import credit_manager
+from .chronicler import chronicler
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +58,10 @@ class Orchestrator:
         self.memory = memory
         self.skills_manager = skills_manager
         self.router = llm_router or LLMRouter()
-        self.editor = editor or FileEditor(SRC_DIR)
+        self.editor = editor or FileEditor(WORKSPACE_ROOT)
         self.approval = approval or ApprovalGate(auto_approve=True)
+        self.git = GitManager()
+        self.tester = TestRunner(self.approval)
         self.tools = self._create_tools()
 
     def _create_tools(self) -> list:
@@ -63,6 +69,8 @@ class Orchestrator:
         memory = self.memory
         skills_manager = self.skills_manager
         editor = self.editor
+        git = self.git
+        tester = self.tester
 
         @tool
         def search_memory(query: str) -> str:
@@ -93,7 +101,7 @@ class Orchestrator:
                 ).hexdigest()
                 skill_data["signature"] = sig
 
-                dyn_dir = "/app/data/dynamic_skills"
+                dyn_dir = "/app/data/dynamic-skills"
                 os.makedirs(dyn_dir, exist_ok=True)
                 fname = f"{skill_data['name']}.skill.json"
                 path = os.path.join(dyn_dir, fname)
@@ -135,8 +143,101 @@ class Orchestrator:
                 return f"Project files ({len(files)} total):\n" + "\n".join(lines)
             except Exception as e:
                 return f"❌ Cannot list files: {str(e)}"
+                
+        @tool
+        def search_project(query: str, directory: str = "") -> str:
+            """Search for a specific string across all editable project files. Returns filename and line context."""
+            try:
+                results = editor.search_project(query, directory)
+                if not results:
+                    return f"No results found for '{query}'."
+                
+                formatted = [f"{r['file']}:{r['line']} - {r['content']}" for r in results]
+                # Limit output size so we don't blow context
+                max_results = 20
+                if len(formatted) > max_results:
+                    formatted = formatted[:max_results] + [f"...and {len(results) - max_results} more results."]
+                
+                return f"Search results for '{query}':\n" + "\n".join(formatted)
+            except Exception as e:
+                return f"❌ Cannot search project: {str(e)}"
+                
+        @tool
+        def read_logs(lines: int = 50) -> str:
+            """Read the most recent application logs to diagnose errors or monitor health."""
+            try:
+                log_path = os.path.join("/app/logs/tendril.log")
+                if not os.path.exists(log_path):
+                    # Fallback to outside container config if needed
+                    log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs", "tendril.log")
+                    if not os.path.exists(log_path):
+                        return "❌ Log file not found."
+                
+                with open(log_path, 'r', encoding='utf-8') as f:
+                    all_lines = f.readlines()
+                    last_lines = all_lines[-lines:]
+                    
+                # Basic redaction to prevent accidental token leakage in output
+                redacted_lines = []
+                for line in last_lines:
+                    if "api_key" in line.lower() or "password" in line.lower() or "secret" in line.lower():
+                        redacted_lines.append(line.split(":")[0] + ": [REDACTED_BY_SYSTEM]")
+                    else:
+                        redacted_lines.append(line)
+                        
+                return "".join(redacted_lines)
+            except Exception as e:
+                return f"❌ Cannot read logs: {str(e)}"
+                
+        @tool
+        def git_commit(message: str) -> str:
+            """Commit all changes in the project with the given message."""
+            try:
+                result = git.commit_changes(message)
+                if "✅" in result:
+                    chronicler.log_commit(message)
+                return result
+            except Exception as e:
+                return f"❌ Git commit failed: {str(e)}"
+                
+        @tool
+        def git_create_branch(branch_name: str) -> str:
+            """Create and checkout a new git branch."""
+            try:
+                return git.create_branch(branch_name)
+            except Exception as e:
+                return f"❌ Git branch failed: {str(e)}"
+                
+        @tool
+        def git_status() -> str:
+            """Get the current git status."""
+            try:
+                return git.status()
+            except Exception as e:
+                return f"❌ Git status failed: {str(e)}"
+                
+        @tool
+        def create_pull_request(title: str, body: str, head_branch: str) -> str:
+            """Create a pull request on GitHub to opentendril/core."""
+            try:
+                return git.create_pull_request("opentendril/core", title, body, head_branch)
+            except Exception as e:
+                return f"❌ PR creation failed: {str(e)}"
+                
+        @tool
+        async def run_bash_command(command: str) -> str:
+            """Run a bash command or test suite (e.g. 'pytest', 'npm test'). Will ask for approval."""
+            try:
+                return await tester.run_command(command, safe=False)
+            except Exception as e:
+                return f"❌ Command execution failed: {str(e)}"
 
-        return [calculator, search_memory, build_skill, read_file, write_file, list_project_files]
+        return [
+            calculator, search_memory, build_skill, read_file, write_file, 
+            list_project_files, search_project, read_logs,
+            git_commit, git_create_branch, git_status, create_pull_request,
+            run_bash_command
+        ]
 
     def process(
         self,
@@ -157,6 +258,10 @@ class Orchestrator:
         Returns:
             Response text from the LLM
         """
+        # Credit Check
+        if not credit_manager.validate_request(session_id):
+            return "❌ Access Denied: Insufficient credits. Please upgrade at cloud.opentendril.com"
+
         llm = self.router.get(provider=provider, tier=tier)
         history = self.memory.get_convo(session_id)
         relevant_docs = self.memory.retrieve_relevant(message)
@@ -184,8 +289,9 @@ Relevant memories:
 Guidelines:
 - Use tools via function calls when helpful
 - When editing files, always show the diff
-- Be concise unless the user asks for detail
+- Self-Diagnosis: Use `read_logs` and `search_project` proactively if a user reports a bug, you encounter an error, or if asked to check system health.
 - If asked to build or modify code, use the read_file and write_file tools
+- Be concise unless the user asks for detail
 - Never modify security-critical files without explaining what you're changing"""
 
         messages = [
@@ -212,6 +318,7 @@ Guidelines:
 
             # If no tool calls, return the text response
             if not resp.tool_calls:
+                credit_manager.consume_request(session_id)
                 return resp.content or "I processed your request but have no text response."
 
             # Execute tool calls
