@@ -32,8 +32,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from pydantic import BaseModel, Field
-
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from .config import validate_config, LOG_DIR
 from .llm_router import LLMRouter
@@ -68,10 +67,14 @@ editor = FileEditor()
 approval = ApprovalGate(auto_approve=True)
 orchestrator = Orchestrator(memory, skills_manager, llm_router, editor, approval)
 
-# Background scheduler for dreaming
-scheduler = BackgroundScheduler(daemon=True)
-scheduler.add_job(lambda: dream(memory, llm_router), "interval", hours=1)
-scheduler.start()
+# Async scheduler for dreaming
+scheduler = AsyncIOScheduler()
+scheduler.add_job(dream, "interval", hours=1, args=[memory, llm_router])
+
+@app.on_event("startup")
+async def start_scheduler():
+    scheduler.start()
+    logger.info("⏰ Background dreamer scheduler started.")
 
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/hour"])
@@ -609,6 +612,7 @@ async def post_message(message: str = Form(...), provider: str = Form("default")
          hx-ext="sse"
          sse-connect="/chat/stream?message={escaped}&provider={provider_param}"
          sse-swap="message"
+         sse-close="done"
          hx-swap="innerHTML">
         <div class="msg-bubble assistant">
             <div class="thinking">
@@ -644,7 +648,7 @@ async def stream_chat(message: str, provider: str = "default"):
                 yield f'data: <div class="msg-bubble assistant">{display}</div>\n\n'
                 await asyncio.sleep(0.015)
 
-            yield "event: close\ndata: close\n\n"
+            yield "event: done\ndata: done\n\n"
 
         except Exception as e:
             logger.error(f"Stream error: {e}")

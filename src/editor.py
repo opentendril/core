@@ -19,7 +19,7 @@ SANDBOX_ROOT = "/app/src"
 ALLOWED_EXTENSIONS = {
     ".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css",
     ".json", ".yml", ".yaml", ".toml", ".md", ".txt",
-    ".sql", ".sh", ".env", ".cfg", ".ini", ".dockerfile",
+    ".sql", ".sh", ".cfg", ".ini", ".dockerfile",
 }
 BLOCKED_PATTERNS = {
     "__pycache__", ".git", "node_modules", ".env",

@@ -23,12 +23,13 @@ LOCAL_MODEL_NAME: str = os.getenv("LOCAL_MODEL_NAME", "Qwen/Qwen3-8B-AWQ")
 LOCAL_INFERENCE_URL: str = os.getenv("LOCAL_INFERENCE_URL", "http://inference:8000/v1")
 
 # --- Infrastructure ---
+POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "")
 REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
 SECRET_KEY: str = os.getenv("SECRET_KEY", "")
 
-# Postgres uses default user 'postgres' from the pgvector container
-POSTGRES_URL = f"postgresql+psycopg://postgres:{POSTGRES_PASSWORD}@postgres:5432/postgres"
+# Postgres connection — user is configurable for production
+POSTGRES_URL = f"postgresql+psycopg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@postgres:5432/postgres"
 REDIS_URL = f"redis://:{REDIS_PASSWORD}@redis:6379/0" if REDIS_PASSWORD else "redis://redis:6379/0"
 DB_CONNECTION = POSTGRES_URL
 
