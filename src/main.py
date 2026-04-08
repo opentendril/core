@@ -911,31 +911,55 @@ Respond with ONLY the complete new file content. No explanations, no markdown fe
         # Generate diff
         diff = editor.generate_diff(req.file, new_content)
 
-        # Request approval
+        # 1. Apply Change Temporarily for SDLC Testing
+        result = editor.write(req.file, new_content)
+        
+        # 2. CI / Automated Tests (The SDLC Loop)
+        check_msg = "Skipped syntax & CI checks (not a .py file)"
+        test_passed = True
+        
+        if req.file.endswith(".py"):
+            from .config import STRICT_LINTING
+            lint_cmd = f"ruff check {req.file}" if STRICT_LINTING else f"ruff check --select E,F {req.file}"
+            
+            # Phase A: Linting
+            lint_output = await orchestrator.tester.run_command(lint_cmd, safe=True)
+            if "❌" in lint_output and "Command failed" in lint_output:
+                test_passed = False
+                check_msg = f"Linting failed:\n{lint_output}"
+            else:
+                # Phase B: Compile & Test
+                test_cmd = f"python -m py_compile {req.file} && pytest tests/"
+                test_output = await orchestrator.tester.run_command(test_cmd, safe=True)
+                
+                if "❌" in test_output:
+                    test_passed = False
+                    check_msg = f"Automated tests failed:\n{test_output}"
+                else:
+                    check_msg = "✅ All linting and CI tests passed."
+
+        # 3. Auto-Revert on Failure
+        if not test_passed:
+            editor.write(req.file, current_content)  # Rollback instantly
+            return {
+                "status": "rejected",
+                "file": req.file,
+                "diff": diff,
+                "error": check_msg,
+                "approval": "auto_reverted"
+            }
+
+        # 4. Code Review (Human Approval)
         approval_req = await approval.request_approval(
             action="file_edit",
-            description=f"Edit {req.file}: {req.instruction[:100]}",
+            description=f"Edit {req.file}: {req.instruction[:100]}\n\nCI Status: {check_msg}",
             diff=diff,
         )
 
         if approval_req.status.value in ("approved", "auto_approved"):
-            # 3. Apply Change
-            result = editor.write(req.file, new_content)
-            
-            # 4. Sandbox Syntax Check
-            check_msg = "Skipped syntax check"
-            if req.file.endswith(".py"):
-                # We use the Orchestrator's tester to run a safe check
-                test_output = await orchestrator.tester.run_command(f"python -m py_compile {req.file}", safe=True)
-                if "❌" in test_output:
-                    # Rolling back isn't fully implemented, so we log the warning for the user
-                    check_msg = f"Syntax error detected: {test_output}"
-                else:
-                    check_msg = "Syntax check passed."
-
-            # 5. Auto-Commit via Moat Loop
-            commit_msg = f"tendril(/edit): {req.instruction[:50]}"
-            # git_commit tool in orchestrator triggers chronicler automatically
+            # 5. Document & Commit
+            # Pass the full context for the Chronicler's automated documentation
+            commit_msg = f"tendril(/edit): Updated {req.file} - {req.instruction[:120]}"
             git_result = orchestrator.git.commit_changes(commit_msg)
 
             return {
@@ -948,6 +972,8 @@ Respond with ONLY the complete new file content. No explanations, no markdown fe
                 "approval": approval_req.status.value,
             }
         else:
+            # Human rejected: Rollback
+            editor.write(req.file, current_content)
             return {
                 "status": "rejected",
                 "file": req.file,
