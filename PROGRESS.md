@@ -18,7 +18,7 @@ This file is the "Source of Truth" for all AI agents working on Tendril. **Updat
 ## 🛠️ Active Tasks
 
 - [x] **Phase 1 & 2:** Chronicler, `/status`, Unified Credits architecture, and Waitlist API.
-- [ ] **Feature:** Secure TestRunner Integration (Automated quality gates for `/edit`).
+- [x] **Feature:** Secure TestRunner Integration (Automated quality gates for `/edit`).
 - [ ] **Feature:** Multi-tenant RAG (Isolating vector spaces per `session_id`).
 - [ ] **Feature:** The "Dreamer" Loop verification and UI visibility.
 

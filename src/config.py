@@ -46,6 +46,9 @@ SKILLS_DIR = os.path.join(WORKSPACE_ROOT, "skills")
 DYNAMIC_SKILLS_DIR = os.path.join(PROJECT_ROOT, "data", "dynamic-skills")
 LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
 
+# SDLC Pipeline Configuration
+STRICT_LINTING: bool = os.getenv("STRICT_LINTING", "false").lower() == "true"
+
 # --- Validation ---
 def validate_config():
     """Check that at least one LLM provider is configured."""
