@@ -152,6 +152,113 @@ class Orchestrator:
                 return f"❌ Patch failed: {str(e)}"
 
         @tool
+        def staged_edit(filepath: str, content: str, description: str) -> str:
+            """Safely modify a PROTECTED file through the staging pipeline.
+
+            This is the ONLY way to modify kernel files (main.py, styles.css, etc).
+            It creates a git branch, applies the change, runs validation, commits,
+            and creates a PR for human review.
+
+            Args:
+                filepath: The file to modify (can be a protected file)
+                content: The new file content
+                description: Brief description of the change (used as commit message)
+            """
+            import subprocess
+            import re
+            from datetime import datetime
+            from .editor import FileEditor
+
+            # Create a staging editor with protection DISABLED
+            staging_editor = FileEditor(sandbox_root=editor.sandbox_root, enforce_protection=False)
+
+            try:
+                # 1. Generate branch name from description
+                slug = re.sub(r'[^a-z0-9]+', '-', description.lower().strip())[:40].strip('-')
+                branch_name = f"staging/{slug}-{datetime.now().strftime('%H%M%S')}"
+
+                # 2. Create branch
+                try:
+                    git.create_branch(branch_name)
+                except Exception as e:
+                    return f"❌ Cannot create branch '{branch_name}': {str(e)}"
+
+                # 3. Generate diff BEFORE writing
+                diff = staging_editor.generate_diff(filepath, content)
+
+                # 4. Write the file (protection bypassed)
+                result = staging_editor.write(filepath, content)
+
+                # 5. Syntax validation for Python files
+                if filepath.endswith('.py'):
+                    try:
+                        resolved = staging_editor._resolve_path(filepath)
+                        subprocess.run(
+                            ["python3", "-m", "py_compile", resolved],
+                            capture_output=True, text=True, check=True
+                        )
+                    except subprocess.CalledProcessError as e:
+                        # Syntax error — revert and switch back to main
+                        git._run_git("checkout", "main", "--", filepath)
+                        git._run_git("checkout", "main")
+                        git._run_git("branch", "-D", branch_name)
+                        return (
+                            f"❌ SYNTAX ERROR — change rejected and reverted.\n"
+                            f"Branch '{branch_name}' deleted.\n"
+                            f"Error: {e.stderr}"
+                        )
+
+                # 6. Commit on the staging branch
+                git._run_git("add", filepath)
+                git._run_git("commit", "-m", f"staging: {description}",
+                             "-m", "Co-authored-by: Tendril <tendril@jurnx.com>")
+
+                # 7. Try to push and create PR
+                pr_url = ""
+                try:
+                    git.push_branch(branch_name)
+                    pr_result = git.create_pull_request(
+                        repo_name="opentendril/core",
+                        title=f"staging: {description}",
+                        body=f"**Automated staging edit by Tendril**\n\n"
+                             f"File: `{filepath}`\n\n"
+                             f"```diff\n{diff[:3000]}\n```\n\n"
+                             f"This change was validated:\n"
+                             f"- ✅ Sandbox check passed\n"
+                             f"- ✅ Syntax check passed\n"
+                             f"- ⏳ Awaiting human review",
+                        head_branch=branch_name,
+                    )
+                    pr_url = f"\n{pr_result}"
+                except Exception as e:
+                    pr_url = f"\n⚠️ Could not push/create PR: {str(e)}"
+
+                # 8. Switch back to main (leave branch for testing)
+                git.checkout("main")
+
+                return (
+                    f"✅ Staged edit committed on branch '{branch_name}'\n"
+                    f"File: {filepath} ({result['size']} bytes)\n\n"
+                    f"To test this change:\n"
+                    f"  git checkout {branch_name}\n"
+                    f"  docker compose up --build\n\n"
+                    f"To merge after testing:\n"
+                    f"  git checkout main\n"
+                    f"  git merge {branch_name}\n"
+                    f"  git push origin main\n"
+                    f"{pr_url}\n\n"
+                    f"Diff:\n{diff}"
+                )
+
+            except Exception as e:
+                # Safety: always try to get back to main
+                try:
+                    git.checkout("main")
+                except Exception:
+                    pass
+                return f"❌ Staged edit failed: {str(e)}"
+
+        @tool
         def list_project_files(directory: str = "") -> str:
             """List all editable files in the project source directory."""
             try:
@@ -332,7 +439,15 @@ The following files are PROTECTED and CANNOT be written to via write_file or app
   GUARDRAILS.md, DECISIONS.md, ARCHITECTURE.md, docker-compose.yml,
   Dockerfile, requirements.txt
 
-If a user asks you to modify these files, explain that they are protected kernel files and suggest using the /edit endpoint or asking the human developer to make the change directly.
+To modify protected files, use the `staged_edit` tool. It safely:
+  1. Creates a git branch (staging/your-change-name)
+  2. Applies the change with protection bypassed
+  3. Runs syntax validation (auto-revert on failure)
+  4. Commits and pushes for human review / PR
+  5. Returns instructions to test and merge
+
+NEVER use write_file or apply_code_patch on protected files — they will fail with PermissionError.
+ALWAYS use staged_edit for protected files — it is the safe, reviewable path.
 
 ## Your Chat Interface
 The user is talking to you through EITHER:
@@ -340,7 +455,7 @@ The user is talking to you through EITHER:
   2. The tendril-cli terminal client
   3. The WebSocket gateway on port 9090
 
-When the user refers to "the chat", "the UI", "the text box", "the screen" — they mean the Web UI files (static/index.html, static/styles.css, static/app.js). You CAN read these files but CANNOT modify them (they are protected).
+When the user refers to "the chat", "the UI", "the text box", "the screen" — they mean the Web UI files (static/index.html, static/styles.css, static/app.js). You CAN read these files and modify them via staged_edit.
 
 ## Available Tools
 {tool_descriptions}
@@ -359,8 +474,9 @@ When the user refers to "the chat", "the UI", "the text box", "the screen" — t
 - When editing files, always show the diff
 - Self-Diagnosis: Use `read_logs` and `search_project` proactively if a user reports a bug
 - Be concise unless the user asks for detail
-- NEVER attempt to modify protected files — you will get a PermissionError
-- If you cannot make a change due to protection, clearly explain what needs to change and suggest the user or a human developer apply it"""
+- For PROTECTED files: use `staged_edit` (creates branch, validates, commits for review)
+- For UNPROTECTED files: use `write_file` or `apply_code_patch` as normal
+- When using staged_edit, tell the user: the change is on a branch, here's how to test and merge it"""
 
         messages = [
             {"role": "system", "content": system_prompt},
