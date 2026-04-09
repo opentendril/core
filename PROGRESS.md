@@ -27,6 +27,7 @@ This file is the "Source of Truth" for all AI agents working on Tendril. **Updat
 
 ## 📈 Recent Pulse (Changelog)
 
+- **2026-04-09:** 🚀 **MILESTONE:** Consolidated 48 hours of strategic development from multiple threads into a new public HISTORY.md manifesto.
 - **2026-04-09:** Go Chat Gateway microservice (539 lines) + tendril-cli (170 lines). WebSocket replaces SSE. Unified Message Object protocol for 20+ channel support.
 - **2026-04-09:** Three core improvements: Event Bus (structured observability w/ Redis), Model Failover (exponential backoff across 4 providers), Surgical Patcher (multi-file patches w/ validation).
 - **2026-04-09:** Frontend extracted from main.py into static files (index.html, styles.css, app.js). main.py reduced from 1237 to 644 lines.

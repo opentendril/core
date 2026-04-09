@@ -55,6 +55,19 @@ class Chronicler:
         except Exception as e:
             logger.error(f"❌ Chronicler failed to log commit: {e}")
 
+    def log_milestone(self, message: str, type: str = "strategic"):
+        """Adds a strategic milestone to the Recent Pulse with highlighting."""
+        icons = {
+            "strategic": "🚀",
+            "decision": "💡",
+            "business": "💰",
+            "milestone": "🏁",
+            "security": "🛡️"
+        }
+        icon = icons.get(type, "✨")
+        formatted_message = f"{icon} **MILESTONE:** {message}"
+        self.log_commit(formatted_message)
+
     def checkpoint_task(self, task_name: str, status: str = "[x]"):
         """Updates a specific task's status in the PROGRESS.md file."""
         # Future enhancement: More granular task management via regex

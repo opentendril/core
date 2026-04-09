@@ -2,15 +2,28 @@
 
 **The agent that builds agents.**
 
-Tendril is the **Root Agent**—the self-building orchestration layer that turns your frustrations into new skills via its `/edit` endpoint. It is not another chatbot. It is not another executor. It is an agentic kernel that fixes itself while it works.
+Tendril is the **Root Agent**—the self-building orchestration layer that turns your frustrations into new skills. It is not another chatbot. it is an agentic kernel that fixes its own source code while it works.
 
-*OpenClaw gave claws; Tendril grows them automatically.*
+---
 
-Download the MIT core, run locally in 47 seconds, or spin up a hosted container that literally improves itself from your logs.
+### 🚀 Public Reveal: The 7-Day Sprint
+We are currently in the middle of a high-velocity launch. Tendril was born to prove that an agent can be its own developer.
+- **Join the Cloud Beta:** [cloud.opentendril.com](https://cloud.opentendril.com)
+- **Watch the Progress:** [PROGRESS.md](PROGRESS.md)
+- **Read the Genesis:** [HISTORY.md](HISTORY.md)
 
-<!-- TODO: Insert animated tendril growth GIF here -->
+---
 
-## Quick Start (Local Development)
+## 💡 The Philosophy
+Current AI orchestrators (OpenClaw, AutoGPT) are **Tools**. You use them to perform a task. If they break, you fix them.
+
+Tendril is a **Kernel**. It is designed to be the "Root Agent" that builds and manages your other agents. If Tendril encounters an error, it uses its `/edit` endpoint to rewrite its own source code, runs a validation suite in a sandbox, and submits a Pull Request for your approval.
+
+*OpenClaw gave you claws. Tendril grows them.*
+
+---
+
+## ⚡ Quick Start (Local Development)
 
 ```bash
 # 1. Configure
