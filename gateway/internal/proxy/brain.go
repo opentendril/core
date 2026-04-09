@@ -23,7 +23,7 @@ func NewBrainClient(baseURL string) *BrainClient {
 	return &BrainClient{
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{
-			Timeout: 120 * time.Second, // LLM calls can be slow
+			Timeout: 300 * time.Second, // Multi-tool orchestrator calls can take 2-5 min
 		},
 	}
 }
