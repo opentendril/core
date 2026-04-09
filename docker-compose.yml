@@ -69,6 +69,18 @@ services:
       # - /path/to/external/repo:/workspace
     restart: unless-stopped
 
+  # Go Chat Gateway — WebSocket entry point for all channels
+  gateway:
+    build: ./gateway
+    ports:
+      - "9090:9090"
+    environment:
+      BRAIN_URL: http://tendril:8080
+      GATEWAY_PORT: "9090"
+    depends_on:
+      - tendril
+    restart: unless-stopped
+
   # Secure sandbox for code execution (no secrets, no DB, no internet)
   sandbox:
     build:
