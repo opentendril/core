@@ -97,3 +97,13 @@ This document records the "Why" behind the Tendril Kernel's evolution. It is a p
 - **Decision:** Add `apply_code_patch` tool using a structured `*** Begin Patch / *** End Patch` format supporting multi-file updates, additions, and deletions. Pre-apply validation ensures paths exist and contexts match.
 - **Rationale:** OpenClaw's format lacks validation and SDLC integration. Tendril validates patches before applying, emits events for every operation, and keeps `write_file` as a fallback for simple edits.
 - **Impact:** LLM can express surgical, multi-file edits efficiently without outputting entire file contents. 10x token savings on large files.
+
+### 17. Go Chat Gateway Microservice (2026-04-09)
+- **Decision:** Extract the chat transport layer into a dedicated Go WebSocket gateway service (`gateway/`). All channels (Web UI, CLI, SaaS, Slack, Discord) connect through this gateway. The Python brain becomes an internal-only service accessed via `POST /v1/chat`.
+- **Rationale:** OpenClaw uses a Node.js WebSocket Gateway for the same reason. Our SSE approach caused duplicate messages (HTMX auto-reconnect), couldn't support interruption (unidirectional), and couldn't scale to multiple channels. Go was chosen over Node.js for 10x lower memory per connection (~4KB goroutine vs ~10KB closure).
+- **Impact:** Eliminates SSE repeat bug, enables 20+ platform integrations via the Unified Message Object pattern, and prepares for SaaS multi-tenant gateway.
+
+### 18. Tendril CLI Client (2026-04-09)
+- **Decision:** Ship a Go CLI client (`cli/`) that connects to the gateway via WebSocket. Interactive REPL with streaming output, provider switching, and session persistence — similar to Codex CLI / Gemini CLI.
+- **Rationale:** CLI is the fastest channel to validate the gateway architecture. Developers prefer terminal workflows. A single Go binary with zero runtime dependencies can be distributed via `go install` or direct download.
+- **Impact:** Tendril becomes usable from any terminal without a browser. Same brain, different interface.
