@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
-    <link rel="icon" type="image/png" href="/static/tendril-logo.png">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -59,7 +59,7 @@
         <header class="topbar">
             <div class="topbar-left">
                 <div class="status-dot"></div>
-                <img src="/static/tendril-logo.png" alt="Tendril Logo" style="height: 24px; width: 24px;">
+                <img src="/static/favicon.png" alt="Tendril Logo" style="height: 24px; width: 24px;">
                 <h1>Tendril</h1>
             </div>
             <select id="provider-select" class="provider-select">
@@ -70,7 +70,7 @@
 
         <div id="chat-messages" class="messages">
             <div class="welcome">
-                <img src="/static/tendril-logo.png" alt="Tendril Logo" style="height: 80px; width: 80px; margin-bottom: 24px; opacity: 1;">
+                <img src="/static/favicon.png" alt="Tendril Logo" style="height: 80px; width: 80px; margin-bottom: 24px; opacity: 1;">
                 <h3>I am the Root Agent.</h3>
                 <p>Turn your frustrations into skills via <code style="background:var(--bg-tertiary);padding:2px 6px;border-radius:4px;border:1px solid var(--border)">/edit</code>.</p>
             </div>
@@ -97,7 +97,7 @@
         <div class="modal-content">
             <span class="close" onclick="closeWaitlistModal()">&times;</span>
             <div style="text-align: center; padding: 20px;">
-                <img src="/static/tendril-logo.png" width="60" style="margin-bottom: 16px;">
+                <img src="/static/favicon.png" width="60" style="margin-bottom: 16px;">
                 <h2 style="margin-bottom: 8px;">The Cloud Is Coming</h2>
                 <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">Zero setup. Multi-agent fleets. Infinite compute. Join the waiting list for early access.</p>
                 <form hx-post="/v1/waitlist" hx-target="#waitlist-result" hx-swap="innerHTML" class="input-form">
