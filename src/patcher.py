@@ -266,12 +266,78 @@ def validate_patch(
     return errors
 
 
+def _apply_hunk_fuzzy(
+    content: str,
+    old_lines: list[str],
+    new_lines: list[str],
+) -> Optional[str]:
+    """
+    Indentation-normalised hunk applicator (Pass 2 fallback).
+
+    Algorithm:
+      1. Strip the leading whitespace from each pattern line to get a
+         "canonical" search key.
+      2. Slide a window of len(old_lines) over the file lines.
+      3. For each window position, compare stripped file lines against
+         stripped pattern lines. If all match, record the common indent
+         of the first matched file line.
+      4. Re-indent new_lines using that indent and splice them in.
+
+    This handles the most common mismatch: the LLM generates
+    "- return 'foo'" (no indent) but the file has "    return 'foo'".
+
+    Returns the modified content string, or None if no match found.
+    """
+    if not old_lines:
+        return None
+
+    file_lines = content.split("\n")
+    n = len(file_lines)
+    k = len(old_lines)
+
+    # Canonical (stripped) versions of the search pattern
+    stripped_old = [l.strip() for l in old_lines]
+
+    # Skip if any pattern line is empty after stripping — too ambiguous
+    if any(s == "" for s in stripped_old):
+        # Allow pure-blank lines to match as wildcards
+        pass
+
+    for start in range(n - k + 1):
+        window = file_lines[start : start + k]
+        stripped_window = [l.strip() for l in window]
+
+        if stripped_window == stripped_old:
+            # Found a match — determine the indentation from the first
+            # non-blank line in the window.
+            base_indent = ""
+            for wline in window:
+                if wline.strip():
+                    base_indent = wline[: len(wline) - len(wline.lstrip())]
+                    break
+
+            # Re-indent new_lines: strip their own leading space from the
+            # parser (single char from the prefix), then apply base_indent.
+            re_indented_new = []
+            for nline in new_lines:
+                # Parser leaves a leading space on context/replacement lines
+                stripped_n = nline.lstrip()
+                re_indented_new.append(base_indent + stripped_n if stripped_n else "")
+
+            # Splice: lines before + re-indented new + lines after
+            result_lines = file_lines[:start] + re_indented_new + file_lines[start + k:]
+            return "\n".join(result_lines)
+
+    return None
+
+
 def apply_patch(
     operations: list[PatchOperation],
     editor: FileEditor,
     run_id: str = "",
     session_id: str = "default",
 ) -> PatchResult:
+
     """
     Apply patch operations to the filesystem.
 
@@ -319,18 +385,33 @@ def apply_patch(
                         modified = True
                         continue
 
-                    # Search for old_lines in content and replace with new_lines
+                    # Search for old_lines in content and replace with new_lines.
+                    #
+                    # Two-pass approach:
+                    #   Pass 1 — exact substring match (fast path)
+                    #   Pass 2 — indentation-normalised line-by-line search
+                    #            handles the common case where the LLM writes
+                    #            "- return 'hello'" and the file has
+                    #            "    return 'hello'" (leading spaces differ).
                     old_text = "\n".join(hunk.old_lines)
                     new_text = "\n".join(hunk.new_lines)
 
                     if old_text in content:
+                        # Pass 1: exact match
                         content = content.replace(old_text, new_text, 1)
                         modified = True
                     else:
-                        logger.warning(
-                            f"Hunk context not found in {op.path}: "
-                            f"{old_text[:60]}..."
-                        )
+                        # Pass 2: indentation-normalised search
+                        matched = _apply_hunk_fuzzy(content, hunk.old_lines, hunk.new_lines)
+                        if matched is not None:
+                            content = matched
+                            modified = True
+                        else:
+                            logger.warning(
+                                f"Hunk context not found in {op.path}: "
+                                f"{old_text[:60]}..."
+                            )
+
 
                 if modified:
                     editor.write(op.path, content)
