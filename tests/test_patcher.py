@@ -320,3 +320,64 @@ class TestApplyPatch:
         result = apply_patch(ops, tmp_sandbox)
         content = (tmp_path / "multi.py").read_text()
         assert "y = 20" in content
+
+    def test_fuzzy_match_indented_function(self, tmp_sandbox, tmp_path):
+        """Fuzzy matcher applies a patch to an indented body even when the
+        '-' line has no leading indent in the patch text."""
+        (tmp_path / "service.py").write_text(
+            "class Greeter:\n"
+            "    def greet(self):\n"
+            "        return 'hello'\n"
+            "\n"
+            "    def farewell(self):\n"
+            "        return 'bye'\n"
+        )
+        patch = """\
+*** Begin Patch
+*** Update File: service.py
+@@ greet
+- return 'hello'
++ return 'world'
+*** End Patch"""
+        ops = parse_patch(patch)
+        result = apply_patch(ops, tmp_sandbox)
+        content = (tmp_path / "service.py").read_text()
+        assert "return 'world'" in content
+        assert "return 'hello'" not in content
+        assert result.file_count == 1
+
+    def test_fuzzy_match_preserves_indentation(self, tmp_sandbox, tmp_path):
+        """After fuzzy replacement the new line carries the original file indent."""
+        (tmp_path / "mod.py").write_text(
+            "def outer():\n"
+            "    x = old_value\n"
+            "    return x\n"
+        )
+        patch = """\
+*** Begin Patch
+*** Update File: mod.py
+@@ outer
+- x = old_value
++ x = new_value
+*** End Patch"""
+        ops = parse_patch(patch)
+        apply_patch(ops, tmp_sandbox)
+        content = (tmp_path / "mod.py").read_text()
+        assert "    x = new_value" in content
+
+    def test_fuzzy_no_match_falls_back_to_warning(self, tmp_sandbox, tmp_path, caplog):
+        """When both passes fail, a warning is logged and the file is unchanged."""
+        import logging
+        (tmp_path / "x.py").write_text("a = 1\n")
+        patch = """\
+*** Begin Patch
+*** Update File: x.py
+@@ x
+- totally_nonexistent_line
++ replacement
+*** End Patch"""
+        ops = parse_patch(patch)
+        with caplog.at_level(logging.WARNING, logger="src.patcher"):
+            result = apply_patch(ops, tmp_sandbox)
+        assert "x.py" not in result.modified
+        assert any("not found" in r.message for r in caplog.records)
