@@ -178,6 +178,10 @@ class FileEditor:
         """Block writes to protected kernel files during chat sessions."""
         if not self.enforce_protection:
             return
+            
+        from .config import SDLC_MODE
+        if SDLC_MODE == "simple":
+            return
         # Normalize to relative path for comparison
         rel = filepath.lstrip("/").lstrip("./")
         if self.sandbox_root and filepath.startswith(self.sandbox_root):

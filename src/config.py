@@ -45,8 +45,10 @@ SRC_DIR = os.path.join(WORKSPACE_ROOT, "src")
 SKILLS_DIR = os.path.join(WORKSPACE_ROOT, "skills")
 DYNAMIC_SKILLS_DIR = os.path.join(PROJECT_ROOT, "data", "dynamic-skills")
 LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
+DATA_ENV_PATH = os.path.join(PROJECT_ROOT, "data", ".env")
 
 # SDLC Pipeline Configuration
+SDLC_MODE: str = os.getenv("SDLC_MODE", "strict").lower()
 STRICT_LINTING: bool = os.getenv("STRICT_LINTING", "false").lower() == "true"
 
 # Sandbox Configuration (secure code execution)
@@ -55,8 +57,18 @@ SANDBOX_URL: str = os.getenv("SANDBOX_URL", "http://sandbox:9999")
 SANDBOX_TOKEN: str = os.getenv("SANDBOX_TOKEN", "")
 
 # --- Validation ---
+def has_active_llm_provider() -> bool:
+    """Check if any LLM API key is currently configured in the environment."""
+    providers = {
+        "grok": os.getenv("GROK_API_KEY", ""),
+        "anthropic": os.getenv("ANTHROPIC_API_KEY", ""),
+        "openai": os.getenv("OPENAI_API_KEY", ""),
+        "google": os.getenv("GOOGLE_API_KEY", ""),
+    }
+    return any(v and len(v) > 5 for v in providers.values())
+
 def validate_config():
-    """Check that at least one LLM provider is configured."""
+    """Validate system configuration (does not crash on missing LLM keys to allow OOTB setup)."""
     providers = {
         "grok": GROK_API_KEY,
         "anthropic": ANTHROPIC_API_KEY,
@@ -67,14 +79,13 @@ def validate_config():
 
     if not active:
         logger.warning(
-            "⚠️  No LLM API keys configured. Set at least one of: "
-            "GROK_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY"
+            "⚠️  No LLM API keys configured! Tendril will boot into interactive setup mode."
         )
-        return False
+        # We don't return False here anymore so the app can boot
+    else:
+        logger.info(f"✅ LLM providers available: {', '.join(active.keys())}")
 
-    logger.info(f"✅ LLM providers available: {', '.join(active.keys())}")
-
-    if DEFAULT_LLM_PROVIDER not in active and DEFAULT_LLM_PROVIDER != "local":
+    if active and DEFAULT_LLM_PROVIDER not in active and DEFAULT_LLM_PROVIDER != "local":
         fallback = next(iter(active.keys()))
         logger.warning(
             f"⚠️  Default provider '{DEFAULT_LLM_PROVIDER}' has no API key. "
