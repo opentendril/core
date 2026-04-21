@@ -179,6 +179,16 @@ class Orchestrator:
             if not git_available:
                 return "❌ staged_edit requires a git repository. No .git directory found."
 
+            # Stash any unrelated dirty files so they don't block the single-file commit
+            stash_ref = None
+            try:
+                stash_out = git._run_git("stash", "push", "--include-untracked",
+                                         "-m", "tendril-staged-edit-temp")
+                if "No local changes" not in stash_out:
+                    stash_ref = "stash@{0}"
+            except Exception:
+                pass  # stash failure is non-fatal
+
             try:
                 # 1. Generate branch name from description
                 slug = re.sub(r'[^a-z0-9]+', '-', description.lower().strip())[:40].strip('-')
@@ -253,6 +263,13 @@ class Orchestrator:
                 # 7. Switch back to main (leave branch for testing/merging)
                 git.checkout("main")
 
+                # Restore any stashed changes
+                if stash_ref:
+                    try:
+                        git._run_git("stash", "pop")
+                    except Exception:
+                        pass
+
                 return (
                     f"✅ Staged edit committed on branch '{branch_name}'\n"
                     f"Patch applied: {result.file_count} file(s)\n"
@@ -263,11 +280,16 @@ class Orchestrator:
                 )
 
             except Exception as e:
-                # Safety: always try to get back to main
+                # Safety: always try to get back to main and restore stash
                 try:
                     git.checkout("main")
                 except Exception:
                     pass
+                if stash_ref:
+                    try:
+                        git._run_git("stash", "pop")
+                    except Exception:
+                        pass
                 return f"❌ Staged edit failed: {str(e)}"
 
         @tool
