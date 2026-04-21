@@ -161,7 +161,7 @@ class Orchestrator:
 
             This is the ONLY way to modify kernel files (main.py, tendril.py, etc).
             It creates a git branch, applies a surgical patch, runs validation, commits,
-            and switches back to main for human review.
+            and switches back to the default branch for human review.
 
             Args:
                 filepath: The file to modify (can be a protected file)
@@ -175,6 +175,28 @@ class Orchestrator:
 
             # Create a staging editor with protection DISABLED
             staging_editor = FileEditor(sandbox_root=editor.sandbox_root, enforce_protection=False)
+
+            if not git_available:
+                return "❌ staged_edit requires a git repository. No .git directory found."
+
+            # Detect the repo's default branch (main, master, or whatever it's called)
+            def _default_branch() -> str:
+                try:
+                    # Prefer the remote HEAD ref if origin is configured
+                    ref = git._run_git(
+                        "symbolic-ref", "refs/remotes/origin/HEAD"
+                    ).strip().replace("refs/remotes/origin/", "")
+                    if ref:
+                        return ref
+                except Exception:
+                    pass
+                try:
+                    # Fall back to local HEAD branch name
+                    return git._run_git("rev-parse", "--abbrev-ref", "HEAD").strip()
+                except Exception:
+                    return "main"  # last resort
+
+            default_branch = _default_branch()
 
             if not git_available:
                 return "❌ staged_edit requires a git repository. No .git directory found."
@@ -205,12 +227,12 @@ class Orchestrator:
                     operations = parse_patch(patch_text)
                     errors = validate_patch(operations, staging_editor)
                     if errors:
-                        git.checkout("main")
+                        git.checkout(default_branch)
                         git._run_git("branch", "-D", branch_name)
                         return f"❌ Patch validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
                     result = apply_patch(operations, staging_editor)
                 except PatchParseError as e:
-                    git.checkout("main")
+                    git.checkout(default_branch)
                     git._run_git("branch", "-D", branch_name)
                     return f"❌ Patch parse error: {str(e)}"
 
@@ -223,9 +245,9 @@ class Orchestrator:
                             capture_output=True, text=True, check=True
                         )
                     except subprocess.CalledProcessError as e:
-                        # Syntax error — revert and switch back to main
-                        git._run_git("checkout", "main", "--", filepath)
-                        git._run_git("checkout", "main")
+                        # Syntax error — revert and switch back to default branch
+                        git._run_git("checkout", default_branch, "--", filepath)
+                        git._run_git("checkout", default_branch)
                         git._run_git("branch", "-D", branch_name)
                         return (
                             f"❌ SYNTAX ERROR — change rejected and reverted.\n"
@@ -248,7 +270,7 @@ class Orchestrator:
                     )
                     if canary.returncode != 0:
                         # Build failed — revert and abort
-                        git.checkout("main")
+                        git.checkout(default_branch)
                         git._run_git("branch", "-D", branch_name)
                         return (
                             f"❌ Canary build FAILED — change reverted.\n"
@@ -260,8 +282,8 @@ class Orchestrator:
                 except subprocess.TimeoutExpired:
                     canary_result = "⚠️ Canary build timed out — branch left for manual review."
 
-                # 7. Switch back to main (leave branch for testing/merging)
-                git.checkout("main")
+                # 7. Switch back to default branch (leave staging branch for review/merge)
+                git.checkout(default_branch)
 
                 # Restore any stashed changes
                 if stash_ref:
@@ -276,13 +298,13 @@ class Orchestrator:
                     f"{result.summary}\n"
                     f"{canary_result}\n\n"
                     f"To merge after review:\n"
-                    f"  git checkout main && git merge {branch_name} && git push origin main\n"
+                    f"  git checkout {default_branch} && git merge {branch_name} && git push origin {default_branch}\n"
                 )
 
             except Exception as e:
-                # Safety: always try to get back to main and restore stash
+                # Safety: always try to get back to the default branch and restore stash
                 try:
-                    git.checkout("main")
+                    git.checkout(default_branch)
                 except Exception:
                     pass
                 if stash_ref:
@@ -404,7 +426,7 @@ class Orchestrator:
 
             @tool
             def merge_staging_branch(branch_name: str, delete_after_merge: bool = True) -> str:
-                """Merge a verified staging branch into main and optionally delete it.
+                """Merge a verified staging branch into the default branch and optionally delete it.
 
                 Use this ONLY after a staged_edit has been reviewed and is ready to ship.
                 This is the final step of the self-build lifecycle.
@@ -414,11 +436,22 @@ class Orchestrator:
                     delete_after_merge: If True (default), delete the branch after successful merge
                 """
                 try:
-                    # Ensure we're on main first
-                    git.checkout("main")
+                    # Detect default branch
+                    try:
+                        default = git._run_git(
+                            "symbolic-ref", "refs/remotes/origin/HEAD"
+                        ).strip().replace("refs/remotes/origin/", "")
+                    except Exception:
+                        try:
+                            default = git._run_git("rev-parse", "--abbrev-ref", "HEAD").strip()
+                        except Exception:
+                            default = "main"
+
+                    # Ensure we're on the default branch first
+                    git.checkout(default)
                     current = git._run_git("rev-parse", "--abbrev-ref", "HEAD").strip()
-                    if current != "main":
-                        return f"❌ Could not switch to main (currently on '{current}')"
+                    if current != default:
+                        return f"❌ Could not switch to {default} (currently on '{current}')"
 
                     # Verify the branch exists
                     branches = git._run_git("branch", "--list", branch_name).strip()
@@ -428,10 +461,10 @@ class Orchestrator:
                     # Merge with no-ff so there's always a merge commit for visibility
                     merge_out = git._run_git(
                         "merge", "--no-ff", "--no-gpg-sign", branch_name,
-                        "-m", f"merge: {branch_name} into main\n\nCo-authored-by: Tendril <tendril@jurnx.com>"
+                        "-m", f"merge: {branch_name} into {default}\n\nCo-authored-by: Tendril <tendril@jurnx.com>"
                     )
 
-                    result = f"✅ Merged '{branch_name}' into main.\n{merge_out}"
+                    result = f"✅ Merged '{branch_name}' into {default}.\n{merge_out}"
 
                     if delete_after_merge:
                         try:
@@ -456,6 +489,23 @@ class Orchestrator:
                 """
                 import time as _time
                 try:
+                    # Always return to the default branch before deleting branches
+                    # (git cannot delete the currently checked-out branch)
+                    try:
+                        default = git._run_git(
+                            "symbolic-ref", "refs/remotes/origin/HEAD"
+                        ).strip().replace("refs/remotes/origin/", "")
+                    except Exception:
+                        try:
+                            default = git._run_git("rev-parse", "--abbrev-ref", "HEAD").strip()
+                        except Exception:
+                            default = "main"
+
+                    try:
+                        git.checkout(default)
+                    except Exception:
+                        pass
+
                     # List all local staging branches with their last commit dates
                     raw = git._run_git(
                         "for-each-ref", "--format=%(refname:short) %(committerdate:unix)",
