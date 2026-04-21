@@ -16,30 +16,15 @@ By the end you will have confirmed the system is live and can respond to a promp
 
 ---
 
-## Step 1 — Clone and Configure
+## Step 1 — Clone and Launch
 
 ```bash
 git clone https://github.com/opentendril/core.git
 cd core
-cp .env.example .env
+docker compose up --build
 ```
 
-Open `.env` and set **at minimum one** LLM key and the three infrastructure secrets:
-
-```bash
-# Pick one (Anthropic recommended for code editing)
-ANTHROPIC_API_KEY=sk-ant-...
-# OR
-GROK_API_KEY=xai-...
-# OR
-OPENAI_API_KEY=sk-...
-
-# Required — generate these now
-POSTGRES_PASSWORD=$(openssl rand -hex 16)
-REDIS_PASSWORD=$(openssl rand -hex 16)
-SECRET_KEY=$(openssl rand -hex 32)
-SANDBOX_TOKEN=$(openssl rand -hex 16)
-```
+That's it. No `.env` file or configuration required to boot. Infrastructure secrets are automatically generated with secure defaults.
 
 > **Self-build mode** (default): Tendril operates on its own source code.
 > To point it at your project instead, see [External Project Mode](#external-project-mode) below.
@@ -55,7 +40,7 @@ docker compose up --build
 Wait for all services to report healthy. You should see:
 
 ```
-tendril-1  | INFO     Application startup complete.
+tendril-1  | INFO:     Application startup complete.
 gateway-1  | Gateway listening on :9090
 ```
 
@@ -136,10 +121,25 @@ you ›
 Type your first message:
 
 ```
-you › What files are in this project?
+you › hello!
 ```
 
-Tendril will stream back a response listing the project files. That's your Hello World. ✅
+Tendril will intercept your message and guide you to configure an API key dynamically:
+
+```
+tendril › 🌱 Welcome to Tendril! The system is live, but no LLM API keys are configured.
+To start chatting, please provide an API key by replying with:
+/config ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Configure your key directly in the CLI:
+
+```
+you › /config OPENAI_API_KEY=sk-your-key
+tendril › ✅ Configuration saved and applied dynamically! Tendril is now fully operational.
+```
+
+That's your Hello World. ✅
 
 **CLI commands:**
 
