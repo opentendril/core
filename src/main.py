@@ -159,7 +159,6 @@ def intercept_slash_commands(message: str) -> Optional[str]:
     parts = msg_strip.split(maxsplit=1)
     cmd = parts[0].lower()
     args = parts[1] if len(parts) > 1 else ""
-
     if cmd == "/help":
         return """## Tendril Command Center
 
@@ -170,18 +169,20 @@ def intercept_slash_commands(message: str) -> Optional[str]:
 - `/local` : Enable the local GPU-accelerated Qwen-3 model
 
 **System**
+- `/sdlc <strict|simple>` : Toggle strict security and testing gates
 - `/status` : View current system configuration
 - `/test` : Run system health checks
 - `/restart` : Restart the Tendril container
 """
 
     elif cmd == "/status":
-        from .config import DEFAULT_LLM_PROVIDER, WORKSPACE_ROOT
+        from .config import DEFAULT_LLM_PROVIDER, WORKSPACE_ROOT, SDLC_MODE
         active = ", ".join(llm_router.available_providers) if llm_router.available_providers else "None"
         return f"""### System Status
 - **Workspace:** `{WORKSPACE_ROOT}`
 - **Active Keys:** {active}
 - **Default Model:** `{DEFAULT_LLM_PROVIDER}`
+- **SDLC Mode:** `{SDLC_MODE}`
 """
 
     elif cmd == "/keys":
@@ -223,6 +224,18 @@ def intercept_slash_commands(message: str) -> Optional[str]:
             append_to_env("DEFAULT_LLM_PROVIDER", "local")
             append_to_env("LOCAL_MODEL_NAME", "Qwen/Qwen3-8B-AWQ")
             return "✅ Local model configured (`Qwen/Qwen3-8B-AWQ`). The CLI will now restart the server using the GPU profile."
+        except Exception as e:
+            return f"❌ Failed to save to disk: {e}"
+
+    elif cmd == "/sdlc":
+        if not args or args.strip().lower() not in ["strict", "simple"]:
+            return "❌ Invalid mode. Use: `/sdlc strict` or `/sdlc simple`"
+        try:
+            mode = args.strip().lower()
+            append_to_env("SDLC_MODE", mode)
+            from . import config
+            config.SDLC_MODE = mode  # Apply instantly in memory as well
+            return f"✅ SDLC Mode updated to `{mode}`."
         except Exception as e:
             return f"❌ Failed to save to disk: {e}"
             
@@ -599,48 +612,58 @@ Respond with ONLY the complete new file content. No explanations, no markdown fe
         result = unprotected_editor.write(req.file, new_content)
         
         # 2. CI / Automated Tests (The SDLC Loop)
-        check_msg = "Skipped syntax & CI checks (not a .py file)"
-        test_passed = True
+        from .config import SDLC_MODE
         
-        if req.file.endswith(".py"):
-            from .config import STRICT_LINTING
-            lint_cmd = f"ruff check {req.file}" if STRICT_LINTING else f"ruff check --select E,F {req.file}"
+        test_passed = True
+        check_msg = "SDLC mode is simple; skipped strict syntax and CI checks."
+        
+        if SDLC_MODE == "strict":
+            check_msg = "Skipped syntax & CI checks (not a .py file)"
             
-            # Phase A: Linting
-            lint_output = await orchestrator.tester.run_command(lint_cmd, safe=True)
-            if "❌" in lint_output and "Command failed" in lint_output:
-                test_passed = False
-                check_msg = f"Linting failed:\n{lint_output}"
-            else:
-                # Phase B: Compile & Test
-                test_cmd = f"python -m py_compile {req.file} && pytest tests/"
-                test_output = await orchestrator.tester.run_command(test_cmd, safe=True)
+            if req.file.endswith(".py"):
+                from .config import STRICT_LINTING
+                lint_cmd = f"ruff check {req.file}" if STRICT_LINTING else f"ruff check --select E,F {req.file}"
                 
-                if "❌" in test_output:
+                # Phase A: Linting
+                lint_output = await orchestrator.tester.run_command(lint_cmd, safe=True)
+                if "❌" in lint_output and "Command failed" in lint_output:
                     test_passed = False
-                    check_msg = f"Automated tests failed:\n{test_output}"
+                    check_msg = f"Linting failed:\n{lint_output}"
                 else:
-                    check_msg = "✅ All linting and CI tests passed."
+                    # Phase B: Compile & Test
+                    test_cmd = f"python -m py_compile {req.file} && pytest tests/"
+                    test_output = await orchestrator.tester.run_command(test_cmd, safe=True)
+                    
+                    if "❌" in test_output:
+                        test_passed = False
+                        check_msg = f"Automated tests failed:\n{test_output}"
+                    else:
+                        check_msg = "✅ All linting and CI tests passed."
 
-        # 3. Auto-Revert on Failure
-        if not test_passed:
-            unprotected_editor.write(req.file, current_content)  # Rollback instantly
-            return {
-                "status": "rejected",
-                "file": req.file,
-                "diff": diff,
-                "error": check_msg,
-                "approval": "auto_reverted"
-            }
+            # 3. Auto-Revert on Failure
+            if not test_passed:
+                unprotected_editor.write(req.file, current_content)  # Rollback instantly
+                return {
+                    "status": "rejected",
+                    "file": req.file,
+                    "diff": diff,
+                    "error": check_msg,
+                    "approval": "auto_reverted"
+                }
 
         # 4. Code Review (Human Approval)
-        approval_req = await approval.request_approval(
-            action="file_edit",
-            description=f"Edit {req.file}: {req.instruction[:100]}\n\nCI Status: {check_msg}",
-            diff=diff,
-        )
+        # In simple mode, auto-approve bypasses the approval gate entirely
+        if SDLC_MODE == "simple":
+            approval_status = "auto_approved"
+        else:
+            approval_req = await approval.request_approval(
+                action="file_edit",
+                description=f"Edit {req.file}: {req.instruction[:100]}\n\nCI Status: {check_msg}",
+                diff=diff,
+            )
+            approval_status = approval_req.status.value
 
-        if approval_req.status.value in ("approved", "auto_approved"):
+        if approval_status in ("approved", "auto_approved"):
             # 5. Document & Commit
             commit_msg = f"tendril(/edit): Updated {req.file} - {req.instruction[:120]}"
             git_result = orchestrator.git.commit_changes(commit_msg)
@@ -652,7 +675,7 @@ Respond with ONLY the complete new file content. No explanations, no markdown fe
                 "diff": diff,
                 "test": check_msg,
                 "commit": git_result,
-                "approval": approval_req.status.value,
+                "approval": approval_status,
             }
         else:
             # Human rejected: Rollback
@@ -661,7 +684,7 @@ Respond with ONLY the complete new file content. No explanations, no markdown fe
                 "status": "rejected",
                 "file": req.file,
                 "diff": diff,
-                "approval": approval_req.status.value,
+                "approval": approval_status,
             }
 
     except PermissionError as e:
