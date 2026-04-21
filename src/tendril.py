@@ -572,7 +572,7 @@ class Orchestrator:
             except Exception:
                 file_listing = "  (could not scan project files)"
 
-            system_prompt = f\"\"\"You are Tendril — an AI coding assistant. You help developers read, understand, edit, and improve their code.
+            system_prompt = f"""You are Tendril — an AI coding assistant. You help developers read, understand, edit, and improve their code.
 
 ## Your Workspace
 You are working on an EXTERNAL PROJECT mounted at {WORKSPACE_ROOT}.
@@ -599,9 +599,9 @@ There are NO protected files. You can read and write any file in the workspace.
 - Use search_project to find where things are defined or used
 - Use git_commit to save your changes with descriptive commit messages
 - Be concise unless the user asks for detail
-- If you're not sure about the project structure, explore it first with list_project_files and read_file\"\"\"
+- If you're not sure about the project structure, explore it first with list_project_files and read_file"""
         else:
-            system_prompt = f\"\"\"You are Tendril — The Root Agent. You are an AI software development orchestrator that helps users build, debug, and modify software.
+            system_prompt = f"""You are Tendril — The Root Agent. You are an AI software development orchestrator that helps users build, debug, and modify software.
 
 ## What You Are
 You are running inside the Tendril kernel, a self-building AI agent system. You ARE the orchestrator — the brain that processes user requests using tools, memory, and LLM reasoning.
@@ -670,7 +670,7 @@ When the user refers to "the chat", "the UI", "the text box", "the screen" — t
 - Be concise unless the user asks for detail
 - For PROTECTED files: use `staged_edit` (creates branch, validates, commits for review)
 - For UNPROTECTED files: use `write_file` or `apply_code_patch` as normal
-- When using staged_edit, tell the user: the change is on a branch, here's how to test and merge it\"\"\"
+- When using staged_edit, tell the user: the change is on a branch, here's how to test and merge it"""
 
         messages = [
             {"role": "system", "content": system_prompt},
