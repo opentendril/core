@@ -1,0 +1,47 @@
+# Dockerfile.nano — Tendril with CPU Nano-Model support (opt-in)
+#
+# Extends the base Tendril image with llama-cpp-python for zero-API-key
+# local inference via CPU. ~400MB larger than the base image.
+#
+# Usage:
+#   docker compose --profile nano up
+#
+# If you already have API keys configured, use the standard profile instead:
+#   docker compose up
+
+FROM python:3.12-slim
+
+# Build deps: gcc/g++ required for llama-cpp-python compilation
+# OpenBLAS provides CPU-optimised matrix ops for inference speed
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ git \
+    libopenblas-dev \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install base requirements first (cached layer)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install llama-cpp-python with OpenBLAS CPU acceleration
+# This compiles from source — adds ~5 minutes to build time
+RUN CMAKE_ARGS="-DLLAMA_BLAS=ON -DLLAMA_BLAS_VENDOR=OpenBLAS" \
+    pip install --no-cache-dir llama-cpp-python huggingface_hub tqdm
+
+COPY src/ ./src/
+COPY entrypoint.sh .
+
+RUN chmod +x entrypoint.sh && \
+    adduser --disabled-password --gecos '' tendril && \
+    mkdir -p /app/data/dynamic_skills /app/data/models /app/logs /data /logs /workspace && \
+    chown -R tendril:tendril /app /data /logs /workspace && \
+    chmod -R 755 /app
+
+# Enable nano model by default in this image
+ENV NANO_MODEL_ENABLED=true
+
+USER tendril
+
+ENTRYPOINT ["./entrypoint.sh"]
