@@ -132,18 +132,35 @@ class ToolFactory:
 
         @tool
         def apply_code_patch(patch_text: str) -> str:
-            """Apply a structured multi-file patch. Use the *** Begin Patch / *** End Patch format for surgical edits."""
-            try:
-                operations = parse_patch(patch_text)
-                errors = validate_patch(operations, editor)
-                if errors:
-                    return "❌ Patch validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
-                result = apply_patch(operations, editor)
-                return f"✅ Patch applied: {result.file_count} file(s)\n{result.summary}"
-            except PatchParseError as e:
-                return f"❌ Patch parse error: {str(e)}"
-            except Exception as e:
-                return f"❌ Patch failed: {str(e)}"
+            """Apply a structured multi-file patch using *** Begin Patch / *** End Patch format.
+            Prefer write_file for simple single-file changes. Use this for multi-file surgical edits."""
+            import threading
+            result_holder = [None]
+            error_holder = [None]
+
+            def _run():
+                try:
+                    operations = parse_patch(patch_text)
+                    errors = validate_patch(operations, editor)
+                    if errors:
+                        result_holder[0] = "❌ Patch validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
+                        return
+                    patch_result = apply_patch(operations, editor)
+                    result_holder[0] = f"✅ Patch applied: {patch_result.file_count} file(s)\n{patch_result.summary}"
+                except PatchParseError as e:
+                    result_holder[0] = f"❌ Patch parse error: {str(e)}"
+                except Exception as e:
+                    result_holder[0] = f"❌ Patch failed: {str(e)}"
+
+            t = threading.Thread(target=_run, daemon=True)
+            t.start()
+            t.join(timeout=30)
+
+            if t.is_alive():
+                logger.warning("apply_code_patch timed out after 30s — use write_file instead")
+                return "❌ Patch timed out. Use write_file for this change instead."
+
+            return result_holder[0] or "❌ Patch produced no result."
 
         @tool
         def list_project_files(directory: str = "") -> str:

@@ -35,15 +35,21 @@ BLOCKED_PATTERNS = {
 }
 
 # Protected files: the LLM CANNOT write to these during chat sessions.
-# These are critical kernel files that have been destroyed by LLM write_file
-# calls multiple times (2026-04-09 incidents: main.py, patcher.py, styles.css).
-# Modifications to these files require the /edit endpoint with SDLC gates,
-# or direct human editing.
-# NOTE: Protection is DISABLED in external project mode — external code has no
-# protected files (the user controls what's editable via their .gitignore).
+# These are critical kernel files. Modifications require the /edit endpoint
+# with SDLC gates, or the staged_edit tool (creates branch, validates, commits).
+# NOTE: Protection is DISABLED in external project mode.
 PROTECTED_FILES = set() if _IS_EXTERNAL else {
+    # App entrypoint
     "src/main.py",
-    "src/tendril.py",
+    # Agent core (the real kernel — modularised from tendril.py)
+    "src/agent/orchestrator.py",
+    "src/agent/tools.py",
+    "src/agent/system_prompt.py",
+    # Routers
+    "src/routers/api.py",
+    "src/routers/ui.py",
+    "src/routers/system.py",
+    # Infrastructure
     "src/config.py",
     "src/editor.py",
     "src/patcher.py",
@@ -51,14 +57,21 @@ PROTECTED_FILES = set() if _IS_EXTERNAL else {
     "src/failover.py",
     "src/eventbus.py",
     "src/memory.py",
+    "src/dependencies.py",
+    # Providers
+    "src/providers/nano.py",
+    # Frontend
     "static/styles.css",
     "static/index.html",
     "static/app.js",
+    # Governance docs
     "GUARDRAILS.md",
     "DECISIONS.md",
     "ARCHITECTURE.md",
+    # Build & infra
     "docker-compose.yml",
     "Dockerfile",
+    "Dockerfile.nano",
     "requirements.txt",
 }
 
