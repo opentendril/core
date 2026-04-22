@@ -22,8 +22,9 @@ DEFAULT_LLM_PROVIDER: str = os.getenv("DEFAULT_LLM_PROVIDER", "grok")
 LOCAL_MODEL_NAME: str = os.getenv("LOCAL_MODEL_NAME", "Qwen/Qwen3-8B-AWQ")
 LOCAL_INFERENCE_URL: str = os.getenv("LOCAL_INFERENCE_URL", "http://inference:8000/v1")
 
-# Nano model — CPU-only zero-config fallback (always bundled, no API key required)
-NANO_MODEL_ENABLED: bool = os.getenv("NANO_MODEL_ENABLED", "true").lower() == "true"
+# Nano model — CPU-only zero-config fallback (opt-in via --profile nano)
+# Set NANO_MODEL_ENABLED=true or use: docker compose --profile nano up
+NANO_MODEL_ENABLED: bool = os.getenv("NANO_MODEL_ENABLED", "false").lower() == "true"
 NANO_MODEL_NAME: str = os.getenv("NANO_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct-GGUF")
 NANO_MODEL_FILE: str = os.getenv("NANO_MODEL_FILE", "qwen2.5-0.5b-instruct-q4_k_m.gguf")
 
