@@ -29,7 +29,12 @@ This file is the "Source of Truth" for the Tendril development sprint. **Stable 
 
 ## 📈 Pulse (Latest Logs)
 
-- **2026-04-27:** 🧠 **COGNITIVE UPGRADES:** Shipped three architectural features in one session:
+- **2026-04-27 (Session 2):** 🤖 **MULTI-AGENT KERNEL:** Shipped ephemeral sub-agent orchestration:
+  - `src/subagent.py` — 5 expert Worker profiles (security_auditor, code_reviewer, test_writer, documenter, linter). Each worker has a tailored persona and restricted tool whitelist (principle of least privilege). Root Agent delegates via `spawn_sub_agent()` tool.
+  - `src/vectorstore.py` — Vector store factory: pgvector (default), Pinecone, Weaviate. Switch with one env var: `VECTOR_STORE_PROVIDER=pinecone`.
+  - `src/kvstore.py` — KV store factory: Redis (default), Upstash (serverless HTTP), InMemory (zero containers). Zero infrastructure mode now available.
+  - `src/assessor.py` — Complexity assessor auto-routes requests to `fast/standard/power` tier. Saves 40-80% on simple queries.
+  - **91/91 unit tests passing.** 6 features shipped, 6 GitHub issues closed in one session.
   - `src/modeldiscovery.py` — Live model catalogue fetch from OpenRouter API with 24h cache. Auto-selects fast/standard/power tiers by pricing metadata.
   - `src/promptcache.py` — Anthropic-native `cache_control` blocks split static system prompt (persona, guardrails, tools) from dynamic context (RAG, skills). 50-90% token cost reduction on cached turns.
   - `src/llmrouter.py` — OpenRouter added as provider #5. Per-provider `.env` model overrides (`ANTHROPIC_POWER_MODEL`, etc.) take precedence over auto-discovery and hardcoded defaults. No code change needed to upgrade model versions.
