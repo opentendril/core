@@ -112,3 +112,11 @@ This document records the "Why" behind the Tendril Kernel's evolution. It is a p
 - **Decision:** Ship a Go CLI client (`cli/`) that connects to the gateway via WebSocket. Interactive REPL with streaming output, provider switching, and session persistence — similar to Codex CLI / Gemini CLI.
 - **Rationale:** CLI is the fastest channel to validate the gateway architecture. Developers prefer terminal workflows. A single Go binary with zero runtime dependencies can be distributed via `go install` or direct download.
 - **Impact:** Tendril becomes usable from any terminal without a browser. Same brain, different interface.
+
+### 19. Self-Identifying Observations & Configurable Human Gates (2026-06-18)
+- **Decision:** Background processes (such as the Dreamer and Test Runner) are authorized to autonomously monitor code, discover bugs, and file them as standard GitHub Issues (Design RFCs) or local markdown observations.
+- **Configurable Gates:** We introduce two configuration switches:
+  * `GATE_ON_OBSERVATIONS` (default: `true`): The agent logs suggested updates but cannot draft implementation plans until a human manually approves.
+  * `GATE_ON_ISSUES` (default: `true`): The agent halts the execution pipeline until a human explicitly signs off on the Design RFC issue (e.g. using labels or comments).
+- **Rationale:** Ensures that the agent's self-healing and self-building pipelines are fully auditable, preventing runaway autonomous edits while allowing the agent to act as a proactive, background quality-assurance partner.
+
