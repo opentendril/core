@@ -39,7 +39,7 @@ health: ## Check service health
 
 # --- Development ---
 test-core: ## Run Python tests
-	cd src && python3 -m pytest ../tests/ -v
+	PYTHONPATH=. python3 -m pytest tests/ -v
 
 test-sprout: ## Run Go tests
 	cd $(SPROUT_DIR) && go test ./... -v
