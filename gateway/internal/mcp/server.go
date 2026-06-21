@@ -94,42 +94,46 @@ func (s *Server) handleRequest(req Request) {
 
 	case "tools/list":
 		// Proxy to the Brain
-		toolsRaw, err := s.brain.ListMCPTools()
+		respRaw, err := s.brain.SendMCPRequest("tools/list", nil)
 		if err != nil {
 			s.sendError(req.ID, -32603, "Internal error", err.Error())
 			return
 		}
 		
-		// We expect the backend to return {"tools": [...]}
-		var toolsResp interface{}
-		if err := json.Unmarshal(toolsRaw, &toolsResp); err != nil {
+		var jsonRpcResp Response
+		if err := json.Unmarshal(respRaw, &jsonRpcResp); err != nil {
 			s.sendError(req.ID, -32603, "Parse error from backend", err.Error())
 			return
 		}
-		s.sendResult(req.ID, toolsResp)
+		if jsonRpcResp.Error != nil {
+			s.sendError(req.ID, jsonRpcResp.Error.Code, jsonRpcResp.Error.Message, jsonRpcResp.Error.Data)
+			return
+		}
+		s.sendResult(req.ID, jsonRpcResp.Result)
 
 	case "tools/call":
-		var params struct {
-			Name      string          `json:"name"`
-			Arguments json.RawMessage `json:"arguments"`
-		}
+		var params interface{}
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			s.sendError(req.ID, -32602, "Invalid params", err.Error())
 			return
 		}
 
-		resultRaw, err := s.brain.CallMCPTool(params.Name, params.Arguments)
+		respRaw, err := s.brain.SendMCPRequest("tools/call", params)
 		if err != nil {
 			s.sendError(req.ID, -32603, "Internal error calling tool", err.Error())
 			return
 		}
 
-		var resultResp interface{}
-		if err := json.Unmarshal(resultRaw, &resultResp); err != nil {
+		var jsonRpcResp Response
+		if err := json.Unmarshal(respRaw, &jsonRpcResp); err != nil {
 			s.sendError(req.ID, -32603, "Parse error from backend", err.Error())
 			return
 		}
-		s.sendResult(req.ID, resultResp)
+		if jsonRpcResp.Error != nil {
+			s.sendError(req.ID, jsonRpcResp.Error.Code, jsonRpcResp.Error.Message, jsonRpcResp.Error.Data)
+			return
+		}
+		s.sendResult(req.ID, jsonRpcResp.Result)
 
 	case "resources/list":
 		// Mock exposing Ambient Memory as resources

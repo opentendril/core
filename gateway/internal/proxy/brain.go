@@ -93,33 +93,19 @@ func (b *BrainClient) Health() error {
 	return nil
 }
 
-// ListMCPTools fetches the tool schema definitions from the python backend.
-func (b *BrainClient) ListMCPTools() (json.RawMessage, error) {
-	url := b.BaseURL + "/api/mcp-tools"
-	resp, err := b.HTTPClient.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("list tools failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read list tools response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("list tools returned %d: %s", resp.StatusCode, string(body))
-	}
-	return body, nil
-}
-
-// CallMCPTool proxies a tool execution request to the Python sandbox.
-func (b *BrainClient) CallMCPTool(name string, args json.RawMessage) (json.RawMessage, error) {
-	url := b.BaseURL + "/api/mcp-call"
+// SendMCPRequest proxies a standard JSON-RPC request to the Python brain's /v1 endpoint.
+func (b *BrainClient) SendMCPRequest(method string, params interface{}) (json.RawMessage, error) {
+	url := b.BaseURL + "/v1"
 	
 	reqBody := map[string]interface{}{
-		"name": name,
-		"args": args,
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  method,
 	}
+	if params != nil {
+		reqBody["params"] = params
+	}
+
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, err
@@ -127,16 +113,16 @@ func (b *BrainClient) CallMCPTool(name string, args json.RawMessage) (json.RawMe
 
 	resp, err := b.HTTPClient.Post(url, "application/json", bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("call tool failed: %w", err)
+		return nil, fmt.Errorf("mcp request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read call tool response: %w", err)
+		return nil, fmt.Errorf("read mcp response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("call tool returned %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("mcp returned %d: %s", resp.StatusCode, string(respBody))
 	}
 	return respBody, nil
 }

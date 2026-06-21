@@ -103,9 +103,30 @@ class Memory:
         return history
 
     def store_longterm(self, content: str, metadata: Dict[str, Any] = None):
+        import uuid
         if metadata is None:
             metadata = {}
-        self.vectorstore.add_texts([content], metadatas=[metadata])
+        node_id = str(uuid.uuid4())
+        metadata["id"] = node_id
+        
+        self.vectorstore.add_texts([content], metadatas=[metadata], ids=[node_id])
+        
+        recent = json.loads(self.kv.get("ambient_queue") or "[]")
+        recent.append({"id": node_id, "content": content, "metadata": metadata})
+        self.kv.set("ambient_queue", json.dumps(recent))
+
+    def get_and_clear_ambient_queue(self) -> List[Dict[str, Any]]:
+        raw = self.kv.get("ambient_queue")
+        self.kv.delete("ambient_queue")
+        return json.loads(raw or "[]")
+
+    def delete_nodes(self, ids: List[str]):
+        if ids:
+            try:
+                self.vectorstore.delete(ids=ids)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Could not delete nodes from vectorstore: {e}")
 
     def retrieve_relevant(self, query: str, session_id: Optional[str] = None, k: int = 5) -> List[Document]:
         """Retrieve relevant documents, optionally filtered by session for tenant isolation."""
