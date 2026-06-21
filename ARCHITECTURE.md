@@ -69,6 +69,27 @@ The execution flow of the OpenTendril framework natively maps to the six major g
 5. **Thigmotropism (The Search and Touch Response):** The Tendril emerges (a Docker container boots via `emergence.py`) and begins sweeping the air. It touches the code, coils around it (executing the LLM loop via `elongation.py`), and pulls the project forward.
 6. **Reproductive Maturity:** With tasks completed, the framework redirects energy back to the user, producing final PRs, deliverables, and artifacts.
 
+```mermaid
+graph TD
+    classDef seed fill:#8b5a2b,stroke:#5c3a21,stroke-width:2px,color:white;
+    classDef stem fill:#2e8b57,stroke:#1b4f30,stroke-width:2px,color:white;
+    classDef tendril fill:#98fb98,stroke:#2e8b57,stroke-width:2px,color:black;
+    classDef fruit fill:#ff8c00,stroke:#8b4500,stroke-width:2px,color:white;
+
+    A(1. Seed Germination<br/>Read .env / Config) --> B(2. Seedling Emergence<br/>Go Gateway Binds)
+    B --> C(3. Vegetative Growth<br/>Connect to LLM/DB Roots)
+    
+    C --> D{4. Tendril Initiation<br/>Task Requested}
+    D -->|Builds Context| E[5. Thigmotropism<br/>Boot Container & Execute]
+    
+    E --> F((6. Reproductive Maturity<br/>Deliver Artifacts / PRs))
+    
+    class A seed;
+    class B,C stem;
+    class D,E tendril;
+    class F fruit;
+```
+
 ---
 
 ## 2. Zero-Dependency Fallbacks
