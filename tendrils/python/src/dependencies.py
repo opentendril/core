@@ -1,7 +1,7 @@
 from .llmrouter import LLMRouter
 from .memory import Memory
 
-from .tendril_loop import TendrilLoop
+from .tendrilloop import TendrilLoop
 from .editor import FileEditor
 from .approval import ApprovalGate
 
@@ -10,4 +10,4 @@ llm_router = LLMRouter()
 memory = Memory()
 editor = FileEditor()
 approval = ApprovalGate(auto_approve=True)
-tendril_loop = TendrilLoop(memory, llm_router, editor, approval)
+tendrilloop = TendrilLoop(memory, llm_router, editor, approval)
