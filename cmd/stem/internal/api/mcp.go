@@ -56,7 +56,7 @@ func (h *MCPHandler) HandleMCP(w http.ResponseWriter, r *http.Request) {
 		h.sendResult(w, req.ID, map[string]interface{}{
 			"tools": []map[string]interface{}{
 				{
-					"name":        "tendrilExecute",
+					"name":        "sproutTendril",
 					"description": "Delegates a complex coding task to the autonomous OpenTendril brain. Use this tool when you need an agent to run terminal commands, debug complex errors, search the web, or execute multi-step engineering tasks inside a secure sandbox.",
 					"inputSchema": map[string]interface{}{
 						"type": "object",
@@ -82,7 +82,7 @@ func (h *MCPHandler) HandleMCP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if params.Name != "tendrilExecute" {
+		if params.Name != "sproutTendril" {
 			h.sendError(w, req.ID, -32601, "Tool not found", nil)
 			return
 		}
