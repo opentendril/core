@@ -1,22 +1,25 @@
 # 🌱 OpenTendril: The Synthetic AI Organism
 
-OpenTendril is a headless, local-first AI coding framework. It runs on your machine, talks to any frontend (Claude Desktop, VS Code, Cursor), and executes code in secure sandboxes.
+**Artificial Intelligence does not behave like traditional computing.**
 
-But fundamentally, **OpenTendril is a paradigm shift in AI orchestration.**
+For decades, the software industry has built deterministic systems—rigid state machines where "Tasks," "Scripts," and "Agents" blindly follow instructions and fail if a single parameter deviates. But Large Language Models are not state machines; they are probabilistic, messy, and organic, modeling the very chaotic adaptation seen in natural biology.
 
-### The Problem with "Agents"
-For years, the industry has tried to force organic, probabilistic neural networks into rigid, deterministic IT concepts ("tasks," "scripts," "agents"). This leads to fragile systems that break the moment a parameter is unexpected, suffer from memory bloat, and expose host machines to severe security risks by running continuous, stateful execution loops.
+Trying to force an organic neural network into rigid, deterministic IT structures leads to fragile systems, memory bloat, and severe security vulnerabilities. 
 
-### The Biological Paradigm
-OpenTendril solves this by embracing biological evolution—the exact chaotic, adaptable system that neural networks were originally modeled after. We have abandoned deterministic software patterns in favor of a **Synthetic Taxonomy**:
+**OpenTendril abandons traditional software architecture in favor of a Synthetic Biological Taxonomy.** By replicating natural evolutionary processes, we have built a highly robust, secure, and adaptable execution engine.
 
-*   **Zero-Idle Ephemerality (The Sprout):** OpenTendril does not run stateful agents. When an instruction is received, a fresh, isolated Docker container (a *Sprout*) instantly boots, executes the logic, and is destroyed. 
-*   **Contextual Interpretation (The Transcript):** We don't issue mechanical "tasks." We provide *Transcripts*—fuzzy instructions that the AI dynamically interprets through the lens of its core identity (its *Genotype*).
-*   **The Immune System (Hormonal Triggers):** Security isn't an afterthought; it's a biological reflex. Acute bash-script triggers instantly abort anomalous executions before the AI even boots, while automated test containers constantly ensure the organism rejects harmful code mutations.
+### The Taxonomy (Biological to IT Mapping)
+To understand OpenTendril, you must understand its anatomy:
 
-By mapping software components to evolutionary biology, OpenTendril provides a profoundly resilient, secure, and adaptable execution engine for Large Language Models.
+*   **The Genotype (System Prompt / Persona):** The core DNA. We don't use generic system prompts; we inject Genotypes that dictate the fundamental identity and constraints of the AI.
+*   **The Transcript (Task / User Prompt):** We do not issue rigid "Tasks." We provide Transcripts—fuzzy, contextual instructions that the Genotype must dynamically interpret and execute.
+*   **The Sprout (Ephemeral Docker Container):** OpenTendril does not run continuous, stateful background agents. For every Transcript, a new isolated *Sprout* (container) instantly boots, executes, and is destroyed. Zero idle cost. Zero state corruption.
+*   **The Immune System (Security & Tests):** Security is a biological reflex. *Hormonal Triggers* (pre-execution bash scripts) instantly abort anomalous behavior, while an automated test suite (Adaptive Immune System) runs in sterile containers to ensure the organism rejects harmful code mutations.
 
 > 📖 **Read the full philosophy:** Dive into the [Synthetic Biological Taxonomy](SYNTHETIC-TAXONOMY.md) to explore the complete design system and architecture.
+
+### What does this actually mean for developers?
+In standard IT speak: **OpenTendril is a headless, local-first AI coding framework.** It runs entirely on your machine, talks to any frontend (Claude Desktop, VS Code, Cursor), and executes code safely within ephemeral Docker sandboxes. 
 
 **Prerequisites:** Docker, Go 1.21+, Git — and optionally [Ollama](https://ollama.ai) for free local inference (no API key needed).
 
