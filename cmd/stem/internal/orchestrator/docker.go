@@ -14,6 +14,7 @@ import (
 // DockerOrchestrator implements the Orchestrator interface using the local Docker daemon.
 type DockerOrchestrator struct {
 	ImageName string
+	Substrate string
 }
 
 func NewDockerOrchestrator() *DockerOrchestrator {
@@ -59,24 +60,27 @@ func (d *DockerOrchestrator) RunTendril(ctx context.Context, taskPrompt string) 
 		args = append(args, "-e", fmt.Sprintf("LOCAL_MODEL_NAME=%s", modelName))
 	}
 
-	pwd := getEnvOrDefault("PWD", mustGetwd())
-	mountPath := pwd
+	// The path to the repository on the host
+	sourcePath := d.Substrate
+	if sourcePath == "" {
+		sourcePath = getEnvOrDefault("OPENTENDRIL_SUBSTRATE", mustGetwd())
+	}
 
-	// Shadow Git Strategy: if we are in a git repository, create a shadow worktree
-	if isGitRepo(pwd) {
-		shadowPath, err := createShadowWorktree(pwd)
+	mountPath := sourcePath
+
+	if isGitRepo(sourcePath) {
+		shadowPath, err := createShadowWorktree(sourcePath)
 		if err == nil {
 			mountPath = shadowPath
 			// Ensure cleanup after execution
 			defer func() {
-				removeShadowWorktree(pwd, shadowPath)
+				removeShadowWorktree(sourcePath, shadowPath)
 			}()
 		} else {
-			// Log error but fallback to mounting PWD
-			fmt.Fprintf(os.Stderr, "⚠️ Failed to create shadow worktree: %v. Falling back to direct mount.\n", err)
+			fmt.Fprintf(os.Stderr, "⚠️ Failed to create shadow worktree: %v. Using active workspace.\n", err)
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "⚠️ Not in a git repository. Running without Shadow Git sandboxing.\n")
+		fmt.Fprintf(os.Stderr, "⚠️ Directory %s is not a git repository. Shadow Git sandboxing disabled.\n", sourcePath)
 	}
 
 	// Mount workspace and set working directory
