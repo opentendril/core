@@ -512,10 +512,9 @@ func (r *sequenceRunner) run(ctx context.Context) (*Sequence, error) {
 				continue
 			}
 
-			fmt.Fprintf(r.opts.Stderr, "⚠️ [%s] failed: %v\n", result.stepID, result.err)
 			step.Status = sequenceStatusFailed
 
-			if shouldSpawnRecursiveDebugger(step) {
+			if shouldBudRecursiveDebugger(step) {
 				debuggerStepID := fmt.Sprintf("debugger-%s-%d", result.stepID, time.Now().UnixNano())
 				debuggerStep := SequenceStep{
 					ID:         debuggerStepID,
@@ -528,7 +527,7 @@ func (r *sequenceRunner) run(ctx context.Context) (*Sequence, error) {
 
 				failedStep := r.stepByID[result.stepID]
 				if failedStep == nil {
-					return r.seq, fmt.Errorf("failed step %s disappeared during debugger spawn", result.stepID)
+					return r.seq, fmt.Errorf("failed step %s disappeared during debugger sprout", result.stepID)
 				}
 				failedStep.DependsOn = append(failedStep.DependsOn, debuggerStepID)
 				failedStep.Status = sequenceStatusPending
@@ -538,7 +537,7 @@ func (r *sequenceRunner) run(ctx context.Context) (*Sequence, error) {
 				if err := SaveSequence(r.path, r.seq); err != nil {
 					return r.seq, err
 				}
-				fmt.Fprintf(r.opts.Stdout, "↺ Spawned recursive Debugger [%s] for failed verifier step [%s]\n", debuggerStepID, result.stepID)
+				fmt.Fprintf(r.opts.Stdout, "↺ Sprouted recursive Debugger [%s] for failed verifier step [%s]\n", debuggerStepID, result.stepID)
 				continue
 			}
 
@@ -557,7 +556,7 @@ func (r *sequenceRunner) run(ctx context.Context) (*Sequence, error) {
 					r.ready = append(r.ready, result.stepID)
 					r.queued[result.stepID] = true
 					r.sortReady()
-					fmt.Fprintf(r.opts.Stderr, "↻ [%s] retrying, %d retries left\n", result.stepID, r.retriesLeft[result.stepID])
+					fmt.Fprintf(r.opts.Stderr, "↺ [%s] retrying, %d retries left\n", result.stepID, r.retriesLeft[result.stepID])
 					continue
 				}
 				return r.seq, fmt.Errorf("step %s failed after %d retries: %w", result.stepID, r.retriesLeft[result.stepID], result.err)
@@ -608,7 +607,7 @@ func (r *sequenceRunner) run(ctx context.Context) (*Sequence, error) {
 	}
 }
 
-func shouldSpawnRecursiveDebugger(step *SequenceStep) bool {
+func shouldBudRecursiveDebugger(step *SequenceStep) bool {
 	if step == nil {
 		return false
 	}
