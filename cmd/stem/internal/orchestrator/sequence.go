@@ -936,6 +936,12 @@ func defaultSequenceStepRunner(ctx context.Context, seq *Sequence, step *Sequenc
 			return "", err
 		}
 	}
+	if isConductorStep(step.ID) {
+		if err := EnsureConductorGenotype(substratePath); err != nil {
+			return "", err
+		}
+		orch.Genotype = "conductor"
+	}
 	return runSequenceSprout(ctx, orch, step.Transcript)
 }
 
