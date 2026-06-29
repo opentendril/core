@@ -1,7 +1,7 @@
-# Tendril Quick Start — "Hello World" in 5 Minutes
+# OpenTendril Quick Start — "Hello World" in 5 Minutes
 
-This guide gets you from zero to a verified, working Tendril kernel.
-By the end you will have confirmed the system is live and can respond to a prompt.
+This guide gets you from zero to a verified, working Go Stem orchestrator.
+By the end, you will have confirmed the system is live, compiled the Go binary, and verified execution commands.
 
 ---
 
@@ -9,11 +9,10 @@ By the end you will have confirmed the system is live and can respond to a promp
 
 | Requirement | Check |
 |---|---|
-| Docker + Docker Compose | `docker compose version` |
+| Go 1.22+ | `go version` |
+| Docker | `docker --version` |
 | Git | `git --version` |
-| An LLM API key | Anthropic, xAI (Grok), or OpenAI |
-| Fine-Grained GitHub PAT | See Step 0 below |
-| *(Optional)* Go 1.22+ | Only needed to build the CLI |
+| An LLM API key | Anthropic (Claude) or OpenAI |
 
 ---
 
@@ -21,188 +20,133 @@ By the end you will have confirmed the system is live and can respond to a promp
 
 OpenTendril operates on a strict **Zero-Trust SDLC architecture**. It must *never* be allowed to push code directly to `main` without human review.
 
-1. **Protect your Main Branch:** In your GitHub/GitLab repository settings, enforce a branch protection rule on `main` that requires a Pull Request before merging.
+1. **Protect your Main Branch:** In your repository settings, enforce a branch protection rule on `main` that requires a Pull Request before merging.
 2. **Create a Fine-Grained PAT:** Generate a Personal Access Token that is strictly scoped to your repository with only **Read/Write** permissions for:
    - Code/Contents
    - Pull Requests
    - Issues
-3. **Configure the Environment:** Store this token in your `.env` file as `GITHUB_TOKEN=...` or inject it via the MCP Server.
+3. **Configure the Environment:** Store this token in your `.env` file as `GITHUB_TOKEN=...` (Git handles this token dynamically during sprout execution).
 
 ---
 
-## Step 1 — Clone and Launch
+## Step 1 — Clone and Compile
+
+Clone the repository and build the Go Stem orchestrator binary:
 
 ```bash
 git clone https://github.com/opentendril/core.git
 cd core
-docker compose up --build
+make install
 ```
 
-That's it. No `.env` file or configuration required to boot. Infrastructure secrets are automatically generated with secure defaults.
+This compiles the code and installs the `tendril` binary directly to your `$GOPATH/bin` (make sure this is in your system `$PATH`).
 
-> **Self-build mode** (default): Tendril operates on its own source code.
-> To point it at your project instead, see [External Project Mode](#external-project-mode) below.
+Verify installation:
+```bash
+tendril --help
+```
 
 ---
 
-## Step 2 — Launch
+## Step 2 — Run Onboarding Wizard
+
+Run the interactive setup wizard to configure LLM API keys and model specifications:
 
 ```bash
-docker compose up --build
+tendril init
 ```
 
-Wait for all services to report healthy. You should see:
-
-```
-tendril-1  | INFO:     Application startup complete.
-gateway-1  | Gateway listening on :9090
-```
-
-This usually takes 60–90 seconds on first launch (it downloads the embedding model).
+The wizard will generate a `.env` file containing your configurations in the root directory.
 
 ---
 
-## Step 3 — Verify the System is Live
+## Step 3 — Boot the Orchestrator API
 
-Run this health check:
+Start the Go Stem background orchestrator API server:
 
 ```bash
-curl -s http://localhost:8080/health | python3 -m json.tool
+tendril serve
 ```
 
-Expected response:
+Expected output:
+```
+🌱 Starting OpenTendril Go Stem Server on :8080...
+⚙️ Loaded substrates config. Named substrates: core
+🧠 Brain client initialized (provider: anthropic)
+```
+
+The orchestrator API is now running locally.
+
+---
+
+## Step 4 — Verification Pathways
+
+Choose **any one** of these paths to interact with the running kernel:
+
+---
+
+### Option A — Stdio MCP Server (Claude Desktop / IDE)
+
+OpenTendril integrates natively with Claude Desktop or Cursor/VS Code as an MCP server. Add this config to your MCP settings file:
 
 ```json
 {
-  "status": "healthy",
-  "version": "0.1.0",
-  "providers": {
-    "anthropic": "available"
+  "mcpServers": {
+    "opentendril": {
+      "command": "tendril",
+      "args": ["mcp"]
+    }
   }
 }
 ```
 
-If you see `"status": "healthy"` — **the kernel is running**. ✅
+Restart your IDE or Claude Desktop. The OpenTendril tools (`sproutTendril`, `createGenotype`) will now be active in your client.
 
 ---
 
-## Step 4 — Hello World
+### Option B — Interactive Terminal Chat
 
-Choose **any one** of these three paths. They all hit the same brain.
-
----
-
-### Option A — curl (fastest, no setup)
+You can chat with OpenTendril directly in your terminal using the WebSocket CLI wrapper:
 
 ```bash
-curl -s -X POST http://localhost:8080/v1/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id": "hello-world", "message": "What files are in this project?"}' \
-  | python3 -m json.tool
+tendril chat
 ```
 
-You should see a JSON response with a `response` field listing the project files.
-
----
-
-### Option B — Go CLI (recommended for interactive use)
-
-Build the CLI (requires Go 1.22+):
-
-```bash
-cd cli/
-go build -o tendril-cli .
-cd ..
+Expected interface:
 ```
-
-Run it:
-
-```bash
-./cli/tendril-cli
-```
-
-You should see:
-
-```
-🌱 Tendril CLI v0.1.0
-Connecting to ws://localhost:9090/ws...
+🌱 OpenTendril CLI Chat
+Connecting to ws://localhost:8080/ws...
 ✅ Connected (session: cli-default, provider: default)
-Type your message and press Enter. Ctrl+C to exit.
 
 you ›
 ```
 
-Type your first message:
-
+Type your first instruction:
 ```
-you › hello!
+you › read cmd/main.go and describe what it does
 ```
-
-Tendril will intercept your message and guide you to configure an API key dynamically:
-
-```
-tendril › 🌱 Welcome to Tendril! The system is live, but no LLM API keys are configured.
-To start chatting, please provide an API key by replying with:
-/config ANTHROPIC_API_KEY=sk-ant-...
-```
-
-Configure your key directly in the CLI:
-
-```
-you › /config OPENAI_API_KEY=sk-your-key
-tendril › ✅ Configuration saved and applied dynamically! Tendril is now fully operational.
-```
-
-That's your Hello World. ✅
-
-**CLI commands:**
-
-| Command | Effect |
-|---|---|
-| `/provider anthropic` | Switch to Claude |
-| `/provider grok` | Switch to Grok |
-| `/clear` | Clear the screen |
-| `/quit` | Exit |
-| `Ctrl+C` | Exit |
 
 ---
 
-### Option C — Web UI (no install required)
+### Option C — Curl Command Execution
 
-Open your browser to:
+Verify the server REST endpoint directly using curl:
 
+```bash
+curl -s -X POST http://localhost:8080/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What files are in this project?"}'
 ```
-http://localhost:8080/chat
-```
-
-Type `What files are in this project?` in the chat box and press Enter.
 
 ---
 
-## Step 5 — Make Your First Edit
+## Step 5 — Multi-Repository & Substrate Config
 
-Once you've confirmed the system is live, try a real agentic task:
-
-```
-you › read cli/main.go and describe what it does
-you › add a comment at the top of cli/main.go explaining this is the Tendril CLI entry point
-you › commit the change with message "docs: add entry point comment to CLI"
-```
-
-Tendril will read the file, generate a diff, apply it, and commit to git.
-
----
-
-## Multi-Repository & Substrate Configuration
-
-If your workspace spans more than one repository, add a `substrates.yaml` file
-to the repo root or `.tendril/` directory.
-
-OpenTendril looks for substrate config in this order:
+If your workspace spans more than one repository, add a `substrates.yaml` file to your project root. OpenTendril looks for it in these locations:
 
 1. `./substrates.yaml`
 2. `./.tendril/substrates.yaml`
-3. The repository root of the current working directory
+3. Repository root of the current workspace
 
 Example:
 
@@ -215,113 +159,26 @@ substrates:
     auth: GITHUB_PERSONAL_ACCESS_TOKEN
     readonly: false
 
-  api:
+  my-api:
     url: https://github.com/myorg/api.git
     branch: develop
     auth: GITHUB_PERSONAL_ACCESS_TOKEN
     readonly: true
 ```
 
-Usage notes:
-
-- Pass the named key, such as `core` or `api`, as the `substrate` argument to `sproutTendril`.
-- `path` is optional. If it exists, Tendril uses the local checkout.
-- If `path` is missing or does not exist, Tendril clones `url` into a temporary workspace for that run.
-- `auth` should be the name of an environment variable, not the token itself.
-- `readonly: true` keeps the sandbox ephemeral and discards changes after the run.
-
----
-
-## Troubleshooting
-
-### "Connection refused" on port 8080
-```bash
-docker compose ps          # Check which services are running
-docker compose logs tendril --tail 50  # Check for startup errors
-```
-
-### "Connection refused" on port 9090 (CLI)
-The gateway service may not have started. Check:
-```bash
-docker compose logs gateway --tail 20
-```
-
-### Health check shows no providers
-Your API key is missing or incorrect in `.env`. Verify:
-```bash
-docker compose exec tendril env | grep -E 'API_KEY|PROVIDER'
-```
-Then restart: `docker compose restart tendril`
-
-### CLI fails to build
-Ensure Go 1.22+ is installed: `go version`
-
-### "All providers in cooldown"
-This means all LLM providers returned errors. Check the logs for rate limit or authentication errors:
-```bash
-docker compose logs tendril | grep -i "error\|cooldown\|api"
-```
-
----
-
-## Third-Party Frontend Compatibility
-
-Tendril exposes an OpenAI-compatible endpoint. Any tool that accepts a custom API base can use it:
-
-```bash
-# Aider
-export OPENAI_API_BASE="http://localhost:8080/v1"
-export OPENAI_API_KEY="tendril"
-aider --model openai/tendril
-
-# Crush
-export OPENAI_API_BASE="http://localhost:8080/v1"
-export OPENAI_API_KEY="tendril"
-crush --model openai/tendril
-```
-
----
-
-## External Project Mode
-
-To run Tendril on your own project instead of its own source:
-
-```bash
-# In .env:
-TENDRIL_WORKSPACE_ROOT=/workspace
-TENDRIL_PROJECT_PATH=/absolute/path/to/your-project
-```
-
-Restart: `docker compose down && docker compose up`
-
-Tendril will now read, edit, and commit against your project.
+*   **Usage:** Pass the named key (e.g. `core` or `my-api`) as the `substrate` argument to `sproutTendril`.
+*   **Dynamic Clones:** If `path` is omitted or does not exist, Go Stem automatically clones the `url` to a temporary directory under `/tmp`, runs the task, pushes the resulting branch to GitHub, and cleans up.
+*   **Gating:** `readonly: true` ensures edits are kept inside the sandbox and never merged back to the host branch.
 
 ---
 
 ## Running the Test Suite
 
-To verify the kernel internals are healthy:
+To verify the orchestrator internals and API routing:
 
 ```bash
-# Inside the repo (no Docker needed)
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-python3 -m pytest tests/ --ignore=tests/testapi.py -v
-# → 108 tests, all passing
+cd cmd/stem
+go test -v ./...
 ```
 
----
-
-## What's Next
-
-| Task | Command |
-|---|---|
-| Edit a file | `you › modify src/sample.py to add error handling` |
-| View git status | `you › what's the current git status?` |
-| Make a safe staged change | `you › use staged_edit to modify [protected file]` |
-| Merge a staged branch | `you › merge the staging branch into main` |
-
-For the full architecture overview, see [ARCHITECTURE.md](./ARCHITECTURE.md).
-For the self-build pipeline, see [GUARDRAILS.md](./GUARDRAILS.md).
+All tests (API, Docker sandbox stashing, sequence conductors, and coordinator routing) should build and pass cleanly.

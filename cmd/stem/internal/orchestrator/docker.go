@@ -60,6 +60,7 @@ var (
 	commitSandboxExecutionFn = commitSandboxExecution
 	mergeSandboxCommitFn     = mergeSandboxCommit
 	pushSandboxCommitFn      = pushSandboxCommit
+	generateRepoMapFn        = GenerateRepoMap
 )
 
 func (d *DockerOrchestrator) resolveLLMClient() *llm.Client {
@@ -186,6 +187,28 @@ func (d *DockerOrchestrator) RunTendril(ctx context.Context, taskPrompt string) 
 
 	if d.Genotype != "" {
 		stagePlasmidsForGenotype(sourcePath, mountPath, d.Genotype)
+	}
+
+	repoMapMarkdown, err := generateRepoMapFn(mountPath)
+	if err != nil {
+		if cleanup != nil {
+			cleanup()
+		}
+		return "", fmt.Errorf("generate repo map: %w", err)
+	}
+
+	repoMapPath := filepath.Join(mountPath, ".tendril", "genome", "repomap.md")
+	if err := os.MkdirAll(filepath.Dir(repoMapPath), 0o755); err != nil {
+		if cleanup != nil {
+			cleanup()
+		}
+		return "", fmt.Errorf("create repo map directory: %w", err)
+	}
+	if err := os.WriteFile(repoMapPath, []byte(repoMapMarkdown), 0o644); err != nil {
+		if cleanup != nil {
+			cleanup()
+		}
+		return "", fmt.Errorf("write repo map plasmid: %w", err)
 	}
 
 	imageName := d.resolveImageName(mountPath)

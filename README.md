@@ -4,25 +4,28 @@
 
 For decades, the software industry has built deterministic systems—rigid state machines where "Tasks," "Scripts," and "Agents" blindly follow instructions and fail if a single parameter deviates. But Large Language Models are not state machines; they are probabilistic, messy, and organic, modeling the very chaotic adaptation seen in natural biology.
 
-Trying to force an organic neural network into rigid, deterministic IT structures leads to fragile systems, memory bloat, and severe security vulnerabilities. 
+Trying to force an organic neural network into rigid, deterministic IT structures leads to fragile execution, context window bloat, and severe security vulnerabilities. 
 
 **OpenTendril abandons traditional software architecture in favor of a Synthetic Biological Taxonomy.** By replicating natural evolutionary processes, we have built a highly robust, secure, and adaptable execution engine.
+
+---
 
 ### The Taxonomy (Biological to IT Mapping)
 To understand OpenTendril, you must understand its anatomy:
 
-*   **The Genotype (System Prompt / Persona):** The core DNA. We don't use generic system prompts; we inject Genotypes that dictate the fundamental identity and constraints of the AI.
+*   **The Genotype (System Prompt / Persona):** The core DNA. We don't use generic system prompts; we inject Genotypes that dictate the fundamental identity and constraints of the AI (e.g. `thinker.json`, `verifier.json`, `debugger.json`).
+*   **The Plasmid (Modular Context / Skills):** Modular blocks of context, rules, or Repo Maps (`repomap.md`) injected into the genome on the fly.
 *   **The Transcript (Task / User Prompt):** We do not issue rigid "Tasks." We provide Transcripts—fuzzy, contextual instructions that the Genotype must dynamically interpret and execute.
-*   **The Sprout (Ephemeral Docker Container):** OpenTendril does not run continuous, stateful background agents. For every Transcript, a new isolated *Sprout* (container) instantly boots, executes, and is destroyed. Zero idle cost. Zero state corruption.
-*   **The Immune System (Security & Tests):** Security is a biological reflex. *Hormonal Triggers* (pre-execution bash scripts) instantly abort anomalous behavior, while an automated test suite (Adaptive Immune System) runs in sterile containers to ensure the organism rejects harmful code mutations.
+*   **The Sprout (Ephemeral Sandbox):** OpenTendril does not run continuous, stateful background agents. For every step, a new isolated *Sprout* (Docker container) instantly boots, executes local commands, and is destroyed.
+*   **The Stem (Go Orchestrator):** The Go-based CLI and API kernel. Just like a physical stem supporting a plant, the Go Stem handles networking, routes LLM completions, and orchestrates sandbox lifecycles.
 
-> 📖 **Read the full philosophy:** Dive into the [Synthetic Biological Taxonomy](SYNTHETIC-TAXONOMY.md) to explore the complete design system.
-> 🛠️ **Read the engineering guide:** Check the [Material & Architecture Guide](TENDRIL-GUIDE.md) to understand how these concepts are physically built (languages, tools, and protocols).
+> 📖 **Read the full philosophy:** Explore the [Synthetic Biological Taxonomy](SYNTHETIC-TAXONOMY.md) to understand the concept design.
+> 🛠️ **Read the engineering guide:** Check the [Material & Architecture Guide](TENDRIL-GUIDE.md) to understand how these concepts are physically built (Go, Docker, and protocols).
+
+---
 
 ### What does this actually mean for developers?
-In standard IT speak: **OpenTendril is a headless, local-first AI coding framework.** It runs entirely on your machine, talks to any frontend (Claude Desktop, VS Code, Cursor), and executes code safely within ephemeral Docker sandboxes. 
-
-**Prerequisites:** Docker, Go 1.21+, Git — and optionally [Ollama](https://ollama.ai) for free local inference (no API key needed).
+In standard IT speak: **OpenTendril is a headless, local-first AI coding framework.** It runs entirely on your host machine, coordinates with any frontend client via the Model Context Protocol (MCP), and executes codebase changes safely inside ephemeral language-specific Docker sandboxes.
 
 ---
 
@@ -36,108 +39,60 @@ cd core
 make install
 ```
 
-This builds the `tendril` binary and installs it to `~/.local/bin/tendril`.
+This compiles the code and installs the `tendril` binary directly to your `$GOPATH/bin` (make sure this is in your system `$PATH`).
 
-> Make sure `~/.local/bin` is in your PATH:
-> ```bash
-> echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
-> ```
-
-### Step 2 — Build the Tendril worker image
-
+Verify installation:
 ```bash
-docker compose build tendril
+tendril --help
 ```
 
-This builds the Python AI worker container. Takes ~2 minutes on first run.
-
-### Step 3 — Start the backing services
-
-```bash
-docker compose up postgres redis -d
-```
-
-Starts the Postgres (memory/vector store) and Redis (event bus) containers.
-
-### Step 4 — Run the setup wizard
+### Step 2 — Run the setup wizard
 
 ```bash
 tendril init
 ```
 
 This will:
-- Auto-detect local [Ollama](https://ollama.ai) models (no API key needed!)
-- Let you pick a model (auto-selects best `*coder*` model)
-- Or configure a cloud provider (Anthropic, OpenAI, Google, etc.)
-- Write your config to `.env`
+- Auto-detect local [Ollama](https://ollama.ai) models.
+- Configure cloud LLM providers (Anthropic, OpenAI, etc.).
+- Write your config to `.env`.
 
-**With Ollama (recommended for local-first):**
-```
-🌱 Welcome to OpenTendril Setup Wizard!
-
-🔍 Scanning for local LLM providers...
-✅ Detected local Ollama with 4 model(s):
-  1) llama3.1:8b
-  2) qwen3.5:9b
-  3) qwen2.5-coder:7b
-  4) qwen2.5-coder:14b
-Would you like to use Ollama for local, private execution? (y/n)
-> y
-Auto-selected model: qwen2.5-coder:7b
-Press Enter to use it, or type a different model name:
-
-════════════════════════════════════════
-  🎉 OpenTendril Setup Complete!
-════════════════════════════════════════
-  Provider : Ollama (local, private)
-  Model    : qwen2.5-coder:7b
-  URL      : http://host.docker.internal:11434/v1
-
-  Next steps:
-  1. Start the Stem server:   tendril serve
-  2. Chat in a new terminal:  tendril chat
-════════════════════════════════════════
-```
-
-### Step 5 — Start the Stem server
+### Step 3 — Start the Stem server
 
 In one terminal:
 ```bash
 tendril serve
 ```
 
-### Step 6 — Chat!
+### Step 4 — Chat!
 
 In a second terminal:
 ```bash
 tendril chat
 ```
 
-Type your task and press Enter. The AI will respond using your local Ollama model.
-
 ---
 
 ## 🏗️ Architecture
 
 ```
-You
- │
- ▼
-tendril chat          ← Terminal chat client
- │  HTTP POST /v1/chat/completions
- ▼
-tendril serve         ← Go Stem (port :8080)
- │  Hormonal Trigger checks
- │  docker run core-tendril:latest
- ▼
-Python Tendril        ← Ephemeral Docker worker
- │  LangChain agent loop
- ▼
-Ollama (host)         ← Local LLM inference
- + Postgres + Redis   ← Memory & event bus
+            YOU (Developer)
+             │
+             ▼
+      Client Applications  ← Claude Desktop / Cursor / Web UI
+             │  (MCP over stdio / WebSockets)
+             ▼
+       tendril serve       ← Unified Go Stem (port :8080)
+             │  - Dynamic LLM Routing (Coordinator / Worker)
+             │  - Substrate & Read-Only configs checked
+             │  - Ephemeral git worktree checkout
+             ▼
+     Stateless Sprout      ← Ephemeral Docker Sandbox (Go/TypeScript)
+             │  - Injects Genotype plasmids & AST Repo Map
+             │  - Executes file edits, compilation, and unit tests
+             ▼
+        Merge Back         ← Stash popped, worktree merged, main updated
 ```
-
-**Key design principle:** The Python AI worker is an *ephemeral container* — it boots for each task, runs the agent loop, returns the result, and exits. Zero idle cost.
 
 ---
 
@@ -145,25 +100,24 @@ Ollama (host)         ← Local LLM inference
 
 OpenTendril acts as a headless backend. You can connect it to your favorite developer tools using either the **Model Context Protocol (MCP)** or its **OpenAI-Compatible API**.
 
-### 1. Antigravity & Claude Desktop (via MCP)
+### 1. Claude Desktop & Cursor (via MCP)
 MCP allows clients to natively access Tendril's secure sandboxed tools.
 
 Edit your MCP configuration file:
-- **Antigravity:** `~/.gemini/config/mcp_config.json`
 - **Claude Desktop (Mac):** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Claude Desktop (Linux):** `~/.config/Claude/claude_desktop_config.json`
 
 Add the following configuration:
 ```json
 {
   "mcpServers": {
     "opentendril": {
-      "command": "/home/<your-username>/.local/bin/tendril",
+      "command": "tendril",
       "args": ["mcp"]
     }
   }
 }
 ```
-*(Tip: Run `tendril init` to see the exact copy-paste block for your system's paths).*
 
 ### 2. Aider & CodexCLI (via OpenAI API)
 Command-line coding assistants can use Tendril as their backend LLM provider, benefiting from its local inference and routing.
@@ -173,45 +127,17 @@ Make sure `tendril serve` is running, then launch Aider:
 aider --openai-api-base http://localhost:8080/v1 --model openai/tendril
 ```
 
-### 3. VS Code / Cursor (via OpenAI API)
-Point any OpenAI-compatible VS Code extension (like Continue.dev) to your local Stem.
-
-In `continue.dev`'s `config.json`:
-```json
-{
-  "models": [
-    {
-      "title": "OpenTendril",
-      "provider": "openai",
-      "model": "tendril",
-      "apiBase": "http://localhost:8080/v1",
-      "apiKey": "sk-local"
-    }
-  ]
-}
-```
-
-### 4. LibreChat / AnythingLLM (Web UI)
-If you want a ChatGPT-like web interface, run LibreChat and add a custom endpoint:
-- **Base URL:** `http://localhost:8080/v1`
-- **API Key:** `sk-local`
-- **Model:** `tendril`
-
 ---
 
 ## ⚙️ Configuration API
 
-Manage Hormonal Triggers and AI personas via the REST API (requires `ADMIN_TOKEN` env var if set):
+Manage security triggers and genotypes via the REST API:
 
 ```bash
 # List active security triggers
 curl http://localhost:8080/v1/config/triggers
 
-# Upload a new trigger script
-curl -X POST http://localhost:8080/v1/config/triggers \
-  -F "file=@my-trigger.sh"
-
-# List AI personas
+# List AI genotypes
 curl http://localhost:8080/v1/config/personas
 ```
 
@@ -221,9 +147,6 @@ curl http://localhost:8080/v1/config/personas
 
 ```bash
 make install          # Build + install tendril binary
-make test-core        # Run Python unit tests
 make test-sprout      # Run Go unit tests
 make test-all         # Run all tests
-docker compose build  # Build all Docker images
-docker compose up postgres redis -d  # Start backing services only
 ```
