@@ -1,169 +1,108 @@
-# OpenTendril Architecture & Pluggable Microservices
+# OpenTendril Architecture & Unified Go Stem Orchestrator
 
-This document defines the target-state architecture and data-flow specifications for OpenTendril. As the system evolves from a monolithic Python script into a distributed set of services, this document serves as the implementation blueprint.
-
-> **Note:** This document focuses strictly on technical execution and microservices. To understand the philosophy, biological terminology, and conceptual design of the framework, please read the [Synthetic Biological Taxonomy](SYNTHETIC-TAXONOMY.md) first!
+This document defines the high-level architecture and data-flow specifications of the OpenTendril framework. 
 
 ---
 
-## 1. Decoupled Service Topography
+## 1. The Headless Kernel Split (Brain vs. Hands)
 
-OpenTendril is split into distinct, specialized services. This allows the CLI/protocol gateway to remain lightweight and compile to a single Go binary, while keeping heavy AI dependencies isolated within the Python sandbox environment.
+OpenTendril separates high-level cognitive planning (the Brain) from secure file/shell execution (the Hands):
+
+*   **The Brain (Client App):** Developer interfaces (such as Claude Desktop, ChatGPT CLI, Cursor, or VS Code) handle rich system layout reasoning, user prompt processing, and external searches. They communicate with the Go Stem using the **Model Context Protocol (MCP)**.
+*   **The Hands (OpenTendril Kernel):** The Go Stem orchestrator runs on the host machine. It receives structured execution commands (e.g. read file, write patch, compile code, run tests) and executes them securely inside sterile sandboxes.
 
 ```
-                 ┌────────────────────────────────────────────────────────┐
-                 │                       CLIENTS                          │
-                 │   LibreChat (Web)  │  Cursor / VSCode  │  Claude CLI   │
-                 └───────────────────────────┬────────────────────────────┘
-                                             │ (MCP over stdio / SSE)
-                                             ▼
-                 ┌────────────────────────────────────────────────────────┐
-                 │                 LIGHTWEIGHT GO SPROUT                  │
-                 │   `tendril -mcp` (Instant boot, proxy routing)         │
-                 └──────┬────────────────────┬─────────────────────┬──────┘
-                        │                    │                     │
-                        ▼                    ▼                     ▼
-             ┌─────────────────────┐ ┌──────────────┐   ┌─────────────────────┐
-             │    SANDBOX CORE     │ │  MEMORY/RAG  │   │     LLM ROUTER      │
-             │   (Python/Docker)   │ │ (SQLite/MCP) │   │ (Ollama/Cloud/vLLM) │
-             └─────────────────────┘ └──────────────┘   └─────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│                       CLIENTS                          │
+│   Claude Desktop  │  Cursor / VSCode  │  LibreChat     │
+└───────────────────────────┬────────────────────────────┘
+                            │ (MCP over stdio / SSE)
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                UNIFIED GO STEM KERNEL                  │
+│   `tendril serve / mcp` (Orchestrator, LLM Routing)   │
+└──────┬──────────────────────────────────────────┬──────┘
+       │                                          │
+       ▼ (Direct LLM Client Calls)                ▼ (JSON payloads over Docker stdin)
+┌──────────────────────────────┐          ┌──────────────────────────────┐
+│       LLM PROVIDERS          │          │      STATELESS SPROUTS       │
+│  Anthropic │ OpenAI │ Local  │          │  (Docker Sandboxes: Go/TS)   │
+└──────────────────────────────┘          └──────────────────────────────┘
 ```
 
-### The Headless Kernel Split (Brain vs. Hands)
+---
 
-To maximize safety and efficiency, OpenTendril enforces a strict separation of concerns between the client interface (the Brain) and the execution kernel (the Hands):
+## 2. Core Service Anatomy
 
-* **The Brain (Client App):** High-end user interfaces (like Claude Desktop, ChatGPT CLI, or VS Code) handle high-level reasoning, system design, prompt construction, and external internet searches.
-* **The Hands (OpenTendril Kernel):** OpenTendril runs locally or in a sandbox. It receives structured requests (such as "read file X" or "run build compilation Y") via the Model Context Protocol (MCP) and executes them securely, returning raw outputs back to the client.
+The system is compiled into a single, unified Go binary (`tendril`) that serves multiple execution interfaces:
 
-This means OpenTendril does not need to duplicate chat interfaces or search tools; it focuses entirely on the secure execution and manipulation of code assets.
+### A. The Go Stem Orchestrator (`cmd/stem`)
+The single source of truth for execution flow and orchestrator security. It runs on the host machine and is responsible for:
+1.  **Protocol Gateways:** Exposing MCP server handlers (stdio/SSE), WebSocket loops for interactive CLI chat, and REST config endpoints.
+2.  **LLM client management:** Directly resolving LLM API requests and prompt completions to Anthropic, OpenAI, or local providers (e.g. Ollama/vLLM) without running any external proxy services.
+3.  **Genotype & Plasmid resolution:** Auto-indexing system prompts (`index.yaml`) and staging markdown context templates.
+4.  **Sandbox Isolation:** Dynamically spawning stateless language sprouts and executing task scripts securely.
 
-### A. The Go Sprout (`tendril`)
-* **Role:** Low-overhead protocol adapter and system orchestrator.
-* **Responsibilities:**
-  * Runs on the host machine as the primary API surface.
-  * Listens to incoming client requests via MCP (stdio/SSE), OpenAI HTTP REST APIs (`/v1/chat-completions`), and WebSockets.
-  * Translates stdio JSON-RPC payloads into simple HTTP requests and routes them to the active Python backend container.
-  * Auto-starts the Docker containers via `docker compose up -d` if it detects that the Python backend is offline.
-
-### B. The Sandbox Core (Python)
-* **Role:** Safe execution backend for files, tests, and bash environments.
-* **Responsibilities:**
-  * Operates strictly inside containerized sandboxes.
-  * Listens on the internal HTTP relay port (`9999`).
-  * Executes standard file operations (`read_file`, `write_file`, surgical patch applications), runs test suites (`pytest`), and checks Python syntax via compiling.
-  * Isolates unverified code execution from the developer's host machine.
-
-### C. The LLM Router (Python)
-* **Role:** Gateway to cloud and local inference engines.
-* **Responsibilities:**
-  * Resolves LLM calls using native SDK adapters (Anthropic, OpenAI, Google) or OpenAI-compatible local APIs (Ollama, OpenLLM).
-  * Manages provider-specific failovers with exponential backoff if primary models hit rate limits.
-  * Decouples the prompt engineering templates from the actual tool execution.
+### B. Ephemeral Sprout Sandboxes
+*   **Role:** Safe, isolated containers running target programming languages (e.g. `opentendril-go`, `opentendril-typescript`).
+*   **Responsibilities:**
+    *   Boots ephemerally when a Sprout run starts.
+    *   Mounts the sandbox Git worktree locally.
+    *   Receives structured JSON command payloads from the Go Stem host over persistent input/output pipes.
+    *   Runs compilers, linters, and unit test suites inside the isolated container, keeping unverified code execution away from the developer's host machine.
 
 ---
 
-## 2. Zero-Dependency Fallbacks
+## 3. Sandboxed Execution Pipeline (Git-Safe SDLC)
 
-To ensure OpenTendril starts instantly on low-spec hardware and doesn't force a heavy Docker infrastructure for simple local tasks, the system implements automatic, graceful fallbacks.
+To protect the developer's primary working branch and repository state, Go Stem implements a git-safe sandbox pipeline:
 
 ```
-┌─────────────────┬─────────────────────────┬───────────────────────────────┐
-│ System Layer    │ Monolith / SaaS Mode    │ Zero-Dependency Fallback      │
-├─────────────────┼─────────────────────────┼───────────────────────────────┤
-│ Database        │ PostgreSQL + pgvector   │ Local file-based sqlite3      │
-│ Message Bus     │ Redis                   │ Thread-safe asyncio.Queue     │
-│ Code Sandbox    │ gVisor / Firecracker VM │ Standard Docker (or Host OS)  │
-│ Memory / RAG    │ Persistent Vector Store │ Context window / External MCP │
-└─────────────────┴─────────────────────────┴───────────────────────────────┘
+                  ┌─────────────────────────────┐
+                  │    1. Save Dirty State      │  <-- `git stash -u`
+                  └──────────────┬──────────────┘
+                                 │
+                                 ▼
+                  ┌─────────────────────────────┐
+                  │    2. Create Sandbox        │  <-- Detached HEAD worktree
+                  └──────────────┬──────────────┘
+                                 │
+                                 ▼
+                  ┌─────────────────────────────┐
+                  │    3. Sprout Execution      │  <-- Docker mount + command runs
+                  └──────────────┬──────────────┘
+                                 │
+                                 ▼
+                  ┌─────────────────────────────┐
+                  │   4. Sandbox Verification   │  <-- Tests pass inside sprout
+                  └──────────────┬──────────────┘
+                                 │
+                                 ▼
+                  ┌─────────────────────────────┐
+                  │    5. Host Merge Back       │  <-- Commit sandbox, ff-merge host,
+                  └──────────────┬──────────────┘      teardown worktree, git stash pop
+                                 │
+                                 ▼
+                            (Done / Fail)
 ```
 
-1. **Database Fallback:** If `POSTGRES_URL` is not configured, the core automatically creates and connects to a local `sqlite3` database file in the project data directory.
-2. **Event Bus Fallback:** If a connection to Redis fails, the system instantiates an in-memory thread-safe `asyncio.Queue` to coordinate streaming events, logs, and telemetry.
-3. **Memory Fallback:** If no vector database is available, the agent operates in "Vectorless Mode." It reads files from the project tree dynamically into the LLM context window based on relevance, or delegates semantic indexing to an external codebase MCP server.
-4. **Sandbox Fallback:** If containerization is disabled (`SANDBOX_ENABLED=false`), OpenTendril falls back to running edits and shell commands directly on the host operating system (clearly warning the user of the security risks).
+1.  **Pre-Flight Stash:** If the host repository has uncommitted local files, Go Stem stashes them (`git stash -u`) before checking out.
+2.  **Detached Worktree:** Go Stem creates a temporary, detached git worktree in a sandboxed path.
+3.  **Staging Plasmids & AST Maps:** Instantiates the Codebase Assessor (Thigmotropism) to generate `repomap.md` and copies genotype plasmids into `.tendril/genome/`.
+4.  **Execution & Tests:** Runs the Sprout container. Code edits and tests are run entirely inside this isolated environment.
+5.  **Post-Flight Commit & Merge:** If compilation and tests succeed, Go Stem commits the edits inside the sandbox, merges the resulting commit back to the host branch natively, deletes the temporary worktree, and pops the developer's stash to restore local state.
+6.  **Read-Only Gating:** If the substrate is marked `readonly: true`, Go Stem skips stashing, blocks commits and merges, and safely discards all sandbox files upon completion.
 
 ---
 
-## 3. Pluggable Sandbox Providers
+## 4. Dynamic Sequence Conductor (Agent Loops)
 
-To support both developer accessibility and enterprise-grade multi-tenant security, the sandbox core supports pluggable runtime providers configured via the `SANDBOX_PROVIDER` environment variable.
+Workflow automation is managed by the **Sequence Conductor**:
 
-* **`docker` (Local Default):** Runs code execution inside a standard Docker container. Fast, highly compatible across platforms (Mac, Windows, Linux), and sufficient for shielding developers from accidental script executions.
-* **`gvisor` (SaaS Secure):** Configures Docker to use Google's `runsc` container runtime. Intercepts and filters Linux kernel system calls in user space, preventing container escape exploits. Enabled in `docker-compose.yml` via:
-  ```yaml
-  sandbox:
-    image: opentendril/sandbox
-    runtime: runsc
-  ```
-* **`firecracker` (Enterprise Isolation):** Runs each execution inside a microVM using AWS Firecracker. Provides hardware-level virtualization via KVM, sub-second boot times, and strict memory/CPU limits.
-
-### De-Risking Local Command Execution (The Sandbox Trap)
-
-Traditional AI coding tools execute terminal commands directly on the developer's host machine (e.g. running test scripts, installing libraries). This introduces severe risks (malicious package installation hooks, accidental directory wipes). OpenTendril eliminates this risk by rerouting all tool commands through the active sandbox provider:
-
-1. **Sprout Redirection:** When the LLM calls `run_command`, the Go Sprout intercepts the request and routes it to the Sandbox Core inside the isolated container or microVM instead of running it on the host OS.
-2. **Resource Boundaries:** The sandbox runs with restricted privileges, mount maps locked strictly to the workspace directory, and a secure egress firewall (blocking outbound data exfiltration attempts).
-3. **Graceful Fallback (Solo Mode):** If a container runtime is not available (e.g. Docker is offline during first launch), OpenTendril falls back to host execution only after issuing a console warning and prompting the user for explicit consent.
-
----
-
-## 4. Connectivity Specifications
-
-The Go Sprout and Python backend communicate over standard protocols, allowing endpoints to remain decoupled:
-1. **Dynamic Tool Registration:** On client initialization, the Go Sprout queries `GET http://localhost:8080/api/mcp-tools`. The Python backend returns all registered LangChain/system tools mapped to the official MCP JSON Schema format.
-2. **Dynamic Tool Execution:** When a client invokes a tool, the Go Sprout sends a `POST http://localhost:8080/api/mcp-call` containing the tool name and argument payload. Python executes the tool inside the container and returns the output.
-3. **Offline Subprocess Path:** If the FastAPI server is completely offline, the Go Sprout falls back to executing a Python subcommand:
-   ```bash
-   core/venv/bin/python -m src.agent.toolscli call <tool-name> <args-json>
-   ```
-   This ensures tool execution works perfectly without any running background services.
-
----
-
-## 5. Repository Boundary: Engine (`core`) vs. Workspace (`tendril`)
-
-To maintain clean separation between engine logic and user state, the system is split into two repositories:
-
-1. **The Core Engine (`opentendril/core`):**
-   * **Purpose:** Houses all system-level logic, gateways, orchestrators, Dockerfiles, and test suites.
-   * **State:** Must remain completely stateless. It does not store user API keys, custom `.skill.json` files, or local databases in its source control.
-2. **The Workspace Distribution (`opentendril/tendril`):**
-   * **Purpose:** Houses the user's environment configuration (`.env`), custom `skills/` registry, local databases, and conversation `data/`.
-   * **Deployment:** Contains the user-facing `docker-compose.yml` or setup scripts that pull pre-compiled container images from the `opentendril/core` registry, mounting the local workspace directories into the container runner.
-
----
-
-## 6. The "Ephemeral Tendril" Architecture (Serverless Agents)
-
-Traditionally, AI "Agents" run as stateful Python loops in the background of a monolithic server. This leads to context degradation (forgetting instructions), memory bloat, and severe security risks because the agent shares the exact same filesystem and network access as the core API server.
-
-OpenTendril solves this by operating as a **Serverless Orchestrator**. 
-
-Instead of generic "Agents" or abstract "Skills", the system consists of **Tendrils**: lightweight, ephemeral workers (Docker containers or isolated sub-processes) that shoot out to execute a highly specialized task, and immediately retract (terminate) when finished.
-
-### A. How a Tendril Operates
-1. **The Orchestrator:** The core OpenTendril binary/API acts as an orchestrator and gateway.
-2. **Spawning a Tendril:** When a task is requested (e.g., "Review this PR"), the Orchestrator does not start a local `while True` loop. Instead, it spins up an instantaneous, lightweight sub-process or restricted Docker container. This is the **Tendril**.
-3. **Task Execution:** The Tendril boots up with *only* the specific configuration, runtime context (e.g., target repository), and guardrails needed for that exact job. It is not a generalized LLM. It executes its strictly defined inference loop, returns the result, and immediately terminates.
-
-### B. Architectural Benefits
-* **Zero Idle Cost:** Tendrils consume zero CPU or RAM when idle. They only exist during active task execution.
-* **Physical Guardrails:** Because the Tendril is an isolated process, its network and filesystem access can be physically restricted via Docker or Firecracker microVMs. It is impossible for the LLM to exceed its explicit permissions.
-* **No Context Degradation:** Because every Tendril starts fresh for a specific task and terminates afterward, there is zero risk of it forgetting structural rules or hallucinating past context.
-
-### C. Shadow Git (Ephemeral Worktrees)
-To protect the main local repository from corruption and isolate intermediate execution states, OpenTendril employs a **Shadow Git** pattern via Git Worktrees:
-1. **Creation:** Before execution, the Orchestrator runs `git worktree add /tmp/tendril-task-<id>`.
-2. **Mounting:** Only this sterile, ephemeral worktree is mounted into the container. The main repository (`/workspace`) is never exposed.
-3. **Execution & Teardown:** The Tendril edits code, runs tests, and commits locally. If successful, it pushes a PR branch. Once the task finishes, the Orchestrator violently deletes the `/tmp` worktree.
-This ensures zero bleed of `__pycache__`, build artifacts, or secret leakages into the developer's primary working directory.
-
-### D. Cross-pollination (Foreign Substrates)
-While local operation utilizes Shadow Git worktrees from the active repository, OpenTendril is also capable of **Cross-pollination**. 
-If a Tendril is sprouted with a `substrateUrl` (a remote Git repository URL), the Orchestrator will:
-1. Bypass the local repository entirely.
-2. Authenticate and perform a full `git clone` of the remote repository into a temporary sandbox.
-3. Drop the Tendril into this foreign substrate to execute its task (e.g. reviewing code or submitting cross-repo patches).
-4. Erase the clone securely when the execution terminates.
-This allows a single OpenTendril orchestrator to autonomously operate across an entire organization's ecosystem of repositories.
+*   **Directed Acyclic Graph (DAG):** Sequences are compiled into dependency-aware steps (`dependsOn` constraints) with concurrency limitations managed by Go goroutines.
+*   **Conductor Step Planning:** Planner sprouts run Coordinator models to analyze code maps and dynamically write/append new steps to the running sequence at execution time.
+*   **Trinity Role Delegation:** In complex tasks, the Conductor sprouts three specialized sprouts sequentially:
+    1.  **Thinker:** Generates the technical specifications and step-by-step instructions.
+    2.  **Worker:** Applies code edits to files.
+    3.  **Verifier:** Compiles code and executes unit tests.
+*   **Recursive Debugging:** If a verifier step fails, the Conductor intercepts the exit code and dynamically sprouts a **Debugger** step. The debugger patches compile errors recursively (up to 3 times) before the verifier resets.

@@ -18,10 +18,10 @@ Tendril instances run as sidecars or tools on any codebase (e.g., `jurnx/med-api
 - ✅ **External Project Mode:** Native mounting of any repo via `TENDRIL_PROJECT_PATH`.
 - ✅ **Dynamic Workspace Awareness:** LLM surveys and understands project context on the fly.
 - ✅ **Tool Adaptability:** File operations and Git committed directly to the external workspace.
-- [ ] **Enterprise Pipelines:** Native "Design → Plan → Pull Request" workflows distinct from the root `/edit` loop.
+- ✅ **Enterprise Pipelines:** Native "Design → Plan → Pull Request" workflows (Trinity-style Thinker-Worker-Verifier sequence conductor).
 - [ ] **Monetization & Credits:** The `credit_manager` enforcing limits on cloud-hosted usage, allowing unlimited local compute.
-- [ ] **MCP Server Integration:** Exposing the Headless Kernel via the Model Context Protocol for Claude Desktop compatibility.
-- [ ] **Shadow Workflows:** Hidden local git tracking (`.codebase`) and automated Quality Gates for safe, isolated AI iterations.
+- ✅ **MCP Server Integration:** Exposing the Headless Kernel via the Model Context Protocol for Claude Desktop and Cursor compatibility.
+- ✅ **Shadow Workflows:** Ephemeral git shadow worktrees, pre-flight stashing, and automated validation gates for safe, isolated AI iterations.
 
 ## Evolution 3: The Automated Hive (Distributed Registry)
 **Focus:** Sharing skills learned by deployed agents back to the Root.
