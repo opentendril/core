@@ -266,11 +266,18 @@ substrates:
 	})
 
 	var capturedExtraEnv []string
+	var capturedRepoMap string
 	ensureSproutImageFn = func(ctx context.Context, imageName string) error {
 		return nil
 	}
 	startDockerSessionFn = func(ctx context.Context, imageName, mountPath string, extraEnv ...string) (toolSession, error) {
 		capturedExtraEnv = append([]string{}, extraEnv...)
+		repoMapPath := filepath.Join(mountPath, ".tendril", "genome", "repomap.md")
+		content, err := os.ReadFile(repoMapPath)
+		if err != nil {
+			t.Fatalf("expected repo map plasmid at %s: %v", repoMapPath, err)
+		}
+		capturedRepoMap = string(content)
 		return &stubToolSession{}, nil
 	}
 	newAgentFn = func(ctx context.Context, workspace string, genotypeRoot string, genotypeName string, client llmCaller, session toolSession) (tendrilRunner, error) {
@@ -329,6 +336,9 @@ substrates:
 
 	if !containsString(capturedExtraEnv, "TENDRIL_READONLY=true") {
 		t.Fatalf("expected TENDRIL_READONLY=true to be passed to the container, got %#v", capturedExtraEnv)
+	}
+	if !strings.Contains(capturedRepoMap, "# Repo Map") {
+		t.Fatalf("expected repo map plasmid content, got %q", capturedRepoMap)
 	}
 }
 
