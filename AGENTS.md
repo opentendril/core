@@ -6,7 +6,7 @@ This document defines the "Operating Constitution" for all AI agents—both inte
 
 ## 1. Builder Authority & PR Discipline
 
-Any external builder agent (e.g. Antigravity) must operate under strict boundary constraints:
+Any external builder agent or process must operate under strict boundary constraints:
 * **No Merge Authority:** Builders do not own merge authority. A builder must never merge a PR or enable auto-merge.
 * **Scope Discipline:** Keep Pull Requests small, isolated, and single-purpose (one task/issue per PR).
 * **Minimal Diffs:** Avoid drive-by or speculative refactors. Stick strictly to the approved plan.
@@ -34,11 +34,11 @@ In **Enterprise Mode** (`enterprise`), the full 3-gate lifecycle is strictly enf
 ```
 
 ### Gate A: Design RFC Approval
-1. **Design RFC:** The Architect Agent reads the codebase and drafts a Design RFC issue using `.github/ISSUE_TEMPLATE/design-rfc.md`. It defines target behaviors and system invariants.
+1. **Design RFC:** The Thinker reads the codebase and drafts a Design RFC issue using `.github/ISSUE_TEMPLATE/design-rfc.md`. It defines target behaviors and system invariants.
 2. **[Human Gate A]:** The human reviews the Design RFC. If approved, the human comments `approved` on the issue.
 
 ### Gate B: Implementation Plan Approval
-3. **Implementation Plan:** The Architect Agent drafts an Implementation Plan issue using `.github/ISSUE_TEMPLATE/implementation-plan.md`. This plan contains:
+3. **Implementation Plan:** The Thinker drafts an Implementation Plan issue using `.github/ISSUE_TEMPLATE/implementation-plan.md`. This plan contains:
    * Current state with exact file and line citations (`path/to/file:line-range`).
    * Proposed code modifications (the Delta).
    * Specific task slices (isolated implementation steps).
@@ -46,8 +46,8 @@ In **Enterprise Mode** (`enterprise`), the full 3-gate lifecycle is strictly enf
 4. **[Human Gate B]:** The human reviews the plan. If approved, the human triggers execution by commenting `approved, build slice N`. A blanket "approved" is not an execution trigger.
 
 ### Gate C: Merge Decision
-5. **Build & Test:** The Builder Agent checks out a staging branch (`staging/ai-*`), implements the approved slice, runs local verification tests (`make check-all`), and opens a Draft PR linked to the issue.
-6. **Drift Review:** The Architect Agent reads the Draft PR, compares the diff to the approved plan, and posts a structured drift review comment classifying any deviations as `P0` (must fix), `P1` (should fix), or `P2` (consider).
+5. **Build & Test:** The Worker checks out a staging branch (`staging/ai-*`), implements the approved slice, runs local verification tests (`make check-all`), and opens a Draft PR linked to the issue.
+6. **Drift Review:** The Thinker reads the Draft PR, compares the diff to the approved plan, and posts a structured drift review comment classifying any deviations as `P0` (must fix), `P1` (should fix), or `P2` (consider).
 7. **[Human Gate C]:** The human reads the drift review, checks CI status, and manually merges the PR.
 
 ---
