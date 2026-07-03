@@ -19,11 +19,16 @@ type SubstratesConfig struct {
 
 // SubstrateSpec describes one named substrate entry.
 type SubstrateSpec struct {
-	Path     string `yaml:"path,omitempty"`
-	URL      string `yaml:"url"`
-	Branch   string `yaml:"branch,omitempty"`
-	Auth     string `yaml:"auth,omitempty"`
-	ReadOnly bool   `yaml:"readonly,omitempty"`
+	Path     string   `yaml:"path,omitempty"`
+	URL      string   `yaml:"url"`
+	Branch   string   `yaml:"branch,omitempty"`
+	Auth     string   `yaml:"auth,omitempty"`
+	ReadOnly bool     `yaml:"readonly,omitempty"`
+	// Provider selects the terrarium backend ("docker", "host", "gvisor", "firecracker").
+	// Defaults to "docker" when omitted.
+	Provider string   `yaml:"provider,omitempty"`
+	// Command overrides the container entrypoint when provider is "host".
+	Command  []string `yaml:"command,omitempty"`
 }
 
 type substrateExecutionPlan struct {
@@ -35,6 +40,8 @@ type substrateExecutionPlan struct {
 	readOnly    bool
 	named       bool
 	remoteClone bool
+	provider    string
+	command     []string
 }
 
 // LoadSubstratesConfig searches for the active substrates.yaml and parses it.
@@ -122,6 +129,8 @@ func resolveSubstrateExecutionPlan(d *DockerOrchestrator, config *SubstratesConf
 			plan.cloneBranch = strings.TrimSpace(spec.Branch)
 		}
 		plan.authRef = strings.TrimSpace(spec.Auth)
+		plan.provider = strings.ToLower(strings.TrimSpace(spec.Provider))
+		plan.command = spec.Command
 	}
 
 	if plan.hostPath == "" {
@@ -222,6 +231,7 @@ func trimSubstrateSpec(spec *SubstrateSpec) {
 	spec.URL = strings.TrimSpace(spec.URL)
 	spec.Branch = strings.TrimSpace(spec.Branch)
 	spec.Auth = strings.TrimSpace(spec.Auth)
+	spec.Provider = strings.ToLower(strings.TrimSpace(spec.Provider))
 }
 
 func pathExists(path string) bool {
