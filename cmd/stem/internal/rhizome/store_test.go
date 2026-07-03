@@ -1,4 +1,4 @@
-package dreamer
+package rhizome
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 func TestSQLiteStoreEncryptsStubsAndSearchesSymbols(t *testing.T) {
 	ctx := context.Background()
-	dbPath := filepath.Join(t.TempDir(), "dreamer.db")
+	dbPath := filepath.Join(t.TempDir(), "rhizome.db")
 	store := openTestStore(t, ctx, dbPath)
 	defer store.Close()
 
@@ -51,7 +51,7 @@ func TestSQLiteStoreEncryptsStubsAndSearchesSymbols(t *testing.T) {
 func TestScanRepositorySkipsUnchangedFilesAndUpdatesChangedFiles(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "dreamer.db")
+	dbPath := filepath.Join(tempDir, "rhizome.db")
 	repoRoot := filepath.Join(tempDir, "repo")
 	if err := os.Mkdir(repoRoot, 0o755); err != nil {
 		t.Fatalf("Mkdir returned error: %v", err)
@@ -102,7 +102,7 @@ func TestScanRepositorySkipsUnchangedFilesAndUpdatesChangedFiles(t *testing.T) {
 
 func TestGenerateRepoMapListsDecryptedSymbols(t *testing.T) {
 	ctx := context.Background()
-	dbPath := filepath.Join(t.TempDir(), "dreamer.db")
+	dbPath := filepath.Join(t.TempDir(), "rhizome.db")
 	store := openTestStore(t, ctx, dbPath)
 	defer store.Close()
 
@@ -110,7 +110,7 @@ func TestGenerateRepoMapListsDecryptedSymbols(t *testing.T) {
 		RepositoryName: "owner/repo",
 		Name:           "Dream",
 		Type:           "function",
-		FilePath:       "dreamer.go",
+		FilePath:       "rhizome.go",
 		LineStart:      7,
 		LineEnd:        7,
 		StubContent:    "func Dream()",

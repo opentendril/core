@@ -127,7 +127,7 @@ body {
 }
 
 /* --- Widgets --- */
-.dreamer-widget {
+.rhizome-widget {
     padding: 10px;
     background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(139, 92, 246, 0.02));
     border: 1px solid rgba(139, 92, 246, 0.15);

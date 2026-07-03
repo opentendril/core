@@ -1,4 +1,4 @@
-package dreamer
+package rhizome
 
 import (
 	"strings"
@@ -40,7 +40,7 @@ func (j Job) Execute(count int) error {
 func TestRegexParserExtractsPythonAndJavaScriptStubs(t *testing.T) {
 	parser := NewRegexParser()
 
-	pythonSymbols, err := parser.Parse("module.py", []byte("class Dreamer:\n    pass\n\ndef distill(repo):\n    return repo\n"))
+	pythonSymbols, err := parser.Parse("module.py", []byte("class Rhizome:\n    pass\n\ndef distill(repo):\n    return repo\n"))
 	if err != nil {
 		t.Fatalf("Parse python returned error: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestRegexParserExtractsPythonAndJavaScriptStubs(t *testing.T) {
 		t.Fatalf("python symbol count mismatch: got %d want 2", len(pythonSymbols))
 	}
 
-	javaScriptSymbols, err := parser.Parse("module.js", []byte("export class Dreamer {}\nexport function distill(repo) { return repo }\n"))
+	javaScriptSymbols, err := parser.Parse("module.js", []byte("export class Rhizome {}\nexport function distill(repo) { return repo }\n"))
 	if err != nil {
 		t.Fatalf("Parse js returned error: %v", err)
 	}

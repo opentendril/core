@@ -1,4 +1,4 @@
-package dreamer
+package rhizome
 
 import (
 	"context"
@@ -88,7 +88,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS symbols USING fts5(
 );`
 
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
-		return fmt.Errorf("initialize dreamer schema: %w", err)
+		return fmt.Errorf("initialize rhizome schema: %w", err)
 	}
 	return nil
 }
