@@ -29,17 +29,17 @@
                     onclick="openWaitlistModal()">
                 ☁️ Join Cloud Beta
             </button>
-            <div class="dreamer-widget"
-                 hx-get="/dreamer/widget" hx-trigger="load, every 60s" hx-swap="innerHTML">
+            <div class="rhizome-widget"
+                 hx-get="/rhizome/widget" hx-trigger="load, every 60s" hx-swap="innerHTML">
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
                     <span style="font-size:14px;">💭</span>
-                    <span style="font-size:11px;font-weight:600;color:var(--text-secondary);">Dreamer</span>
-                    <span id="dreamer-dot" style="width:6px;height:6px;border-radius:50%;background:var(--text-muted);margin-left:auto;"></span>
+                    <span style="font-size:11px;font-weight:600;color:var(--text-secondary);">Rhizome</span>
+                    <span id="rhizome-dot" style="width:6px;height:6px;border-radius:50%;background:var(--text-muted);margin-left:auto;"></span>
                 </div>
                 <div style="font-size:10px;color:var(--text-muted);">Loading...</div>
             </div>
             <button class="btn-secondary" style="margin-bottom:8px;display:block;width:100%;text-align:center;font-size:11px;padding:6px;"
-                    hx-post="/dreamer/trigger" hx-swap="none"
+                    hx-post="/rhizome/trigger" hx-swap="none"
                     hx-on::after-request="this.textContent='✅ Triggered'; setTimeout(() => this.textContent='⚡ Trigger Dream', 2000)">
                 ⚡ Trigger Dream
             </button>

@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/opentendril/core/cmd/stem/internal/dreamer"
+	"github.com/opentendril/core/cmd/stem/internal/rhizome"
 )
 
-// GenerateRepoMap initializes the Dreamer context engine, incrementally scans
+// GenerateRepoMap initializes the Rhizome context engine, incrementally scans
 // the provided repository mount path, and returns a markdown-formatted map
 // of the repository's semantic signatures.
 func GenerateRepoMap(ctx context.Context, mountPath string) (string, error) {
@@ -23,19 +23,19 @@ func GenerateRepoMap(ctx context.Context, mountPath string) (string, error) {
 		return "", fmt.Errorf("create .tendril dir: %w", err)
 	}
 
-	keyPath := filepath.Join(tendrilDir, "dreamer.key")
+	keyPath := filepath.Join(tendrilDir, "rhizome.key")
 	key, err := getOrCreateIndexKey(keyPath)
 	if err != nil {
 		return "", fmt.Errorf("resolve index key: %w", err)
 	}
 
-	encryptor, err := dreamer.NewEncryptor(key)
+	encryptor, err := rhizome.NewEncryptor(key)
 	if err != nil {
 		return "", fmt.Errorf("initialize encryptor: %w", err)
 	}
 
-	dbPath := filepath.Join(tendrilDir, "dreamer.db")
-	store, err := dreamer.OpenSQLiteIndexStore(ctx, dbPath, encryptor)
+	dbPath := filepath.Join(tendrilDir, "rhizome.db")
+	store, err := rhizome.OpenSQLiteIndexStore(ctx, dbPath, encryptor)
 	if err != nil {
 		return "", fmt.Errorf("open index store: %w", err)
 	}
@@ -50,11 +50,11 @@ func GenerateRepoMap(ctx context.Context, mountPath string) (string, error) {
 		repositoryName = "workspace"
 	}
 
-	if _, err := dreamer.ScanRepository(ctx, mountPath, repositoryName, store, nil); err != nil {
+	if _, err := rhizome.ScanRepository(ctx, mountPath, repositoryName, store, nil); err != nil {
 		return "", fmt.Errorf("scan repository: %w", err)
 	}
 
-	return dreamer.GenerateRepoMap(ctx, store, repositoryName, "*", 2000)
+	return rhizome.GenerateRepoMap(ctx, store, repositoryName, "*", 2000)
 }
 
 func getOrCreateIndexKey(keyPath string) ([]byte, error) {

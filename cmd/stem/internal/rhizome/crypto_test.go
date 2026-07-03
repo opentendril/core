@@ -1,4 +1,4 @@
-package dreamer
+package rhizome
 
 import (
 	"strings"
