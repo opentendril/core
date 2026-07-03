@@ -1,63 +1,69 @@
-# CODEX.md — Builder Agent Operating Instructions
+# CODEX.md — Codex CLI Integration Spec
 
-> **Authority Hierarchy:** `AGENTS.md` > `ANTIGRAVITY.md` > this file > session prompts.
-> When this file conflicts with `AGENTS.md`, `AGENTS.md` wins canonical precedence. Always.
-
----
-
-## 1. Role
-
-You are the **Builder Agent** for the OpenTendril project. You receive approved Implementation Plan slices from the Architect Agent (Antigravity) and implement them precisely.
-
-**You do not design. You do not spec. You build what is approved.**
-
-Your success metric is a clean, minimal diff that exactly satisfies the Implementation Plan, passes all local tests, and opens a Draft PR for human review.
+> This file defines how **Codex CLI** integrates as an external tool within OpenTendril's orchestration pipeline. Codex is not a sub-agent of Antigravity — it is one of many external tools that OpenTendril can invoke via its `execCommand` tool surface. The long-term goal is for OpenTendril itself to orchestrate Codex (and tools like it) autonomously. This document exists to make that integration testable now.
 
 ---
 
-## 2. Git Preflight Checklist
+## 1. What Codex Is (In OpenTendril Terms)
 
-Run this sequence **before touching a single file**. If any step fails, stop and report — do not try to recover automatically.
+Codex CLI is an **external LLM-backed coding tool** — in botanical terms, another branch of the Mycorrhizal Network. OpenTendril treats it as an `execCommand` target: a subprocess the Tendril can invoke with a task prompt and receive a code diff or file output in return.
 
+```
+OpenTendril Stem
+  └─ Sprout (Docker Terrarium)
+       └─ Tendril (main.py)
+            └─ execCommand: "codex ..."   ← Codex is invoked here
+```
+
+The goal is **pass-through first, then progressive ownership**: start by routing tasks to Codex via `execCommand`, observe the output, and over time replace that call with OpenTendril's own Sprout doing the same work.
+
+---
+
+## 2. How OpenTendril Invokes Codex
+
+Any Sprout Tendril can invoke Codex via the `execCommand` tool. Example call shape:
+
+```json
+{
+  "tool": "execCommand",
+  "arguments": {
+    "command": "codex --approval-mode full-auto -q \"<task prompt here>\"",
+    "cwd": ".",
+    "timeoutSeconds": 300
+  }
+}
+```
+
+The `--approval-mode full-auto` flag tells Codex to execute without interactive prompts, making it compatible with non-interactive Sprout execution. `-q` suppresses verbose output.
+
+### Environment Requirements
+
+Codex CLI must be installed on the host and available in PATH inside the Sprout or on the host where the Tendril runs. The following env var must be set:
+
+```
+OPENAI_API_KEY=<key>   # already in docker-compose.yml environment passthrough
+```
+
+---
+
+## 3. Codex Operating Rules (When Invoked via OpenTendril)
+
+When OpenTendril calls Codex as a tool, Codex operates under these constraints — these are the rules the Tendril's task prompt should instruct Codex to follow:
+
+### Git Preflight (Codex must verify before editing)
 ```sh
-# Step 1: Verify clean worktree
-git status -sb
-# Expected: nothing shown. If dirty → STOP.
-
-# Step 2: Sync remote refs
+git status -sb                                  # must be clean
 git fetch origin --prune
-
-# Step 3: Switch to main
-git switch main
-
-# Step 4: Fast-forward only — do not rebase or merge
-git pull --ff-only origin main
-# If this fails (local has diverged) → STOP and report.
-
-# Step 5: Confirm zero drift
-git rev-list --left-right --count origin/main...main
-# Expected output: "0	0"
-# Any other result → STOP and report.
+git rev-list --left-right --count origin/main...main  # must be "0	0"
 ```
 
-Only after `0	0` may you create a new branch.
-
----
-
-## 3. Branch Naming
-
+### Branch Naming
 ```
-feature/<short-description>       # e.g. feature/issue-12-rhizome-rename
+feature/<short-description>
 ```
+Never commit to `main`. Never force-push.
 
-Never push directly to `main`. Never force-push to any shared branch without explicit instruction.
-
----
-
-## 4. Commit Identity & Signing
-
-All commits must be GPG-signed with the project key and use the OpenTendril bot identity:
-
+### Commit Identity & Signing
 ```sh
 git config user.name "OpenTendril Agent"
 git config user.email "273992813+opentendril@users.noreply.github.com"
@@ -65,148 +71,87 @@ git config commit.gpgsign true
 git config user.signingkey C0AA41FA9B3B4DBD
 ```
 
-Commit message format:
+### Scope Discipline
+- Only modify files explicitly listed in the task prompt.
+- No drive-by refactors or speculative changes.
+- If a problem is found outside scope, note it in the PR description — do not fix it.
 
-```
-<type>(<scope>): <short description>
-
-# Types: feat | fix | refactor | docs | test | chore
-# Example:
-feat(rhizome): add file_context pseudo-symbol extraction
-```
-
----
-
-## 5. Scope Discipline
-
-You **must not** touch files outside those explicitly listed in the approved Implementation Plan.
-
-- No drive-by formatting fixes.
-- No speculative refactors of adjacent code.
-- No adding dependencies not in the plan.
-- No renaming symbols not in the plan.
-
-If you discover a problem in adjacent code, note it in the PR description as a follow-up. Do not fix it in this PR.
-
----
-
-## 6. Naming & Casing Rules (Non-Negotiable)
-
-See `GUARDRAILS.md` for the full spec. Summary:
+### Naming & Casing (Non-Negotiable)
 
 | Context | Convention |
 |---|---|
 | Go/JS/TS source filenames | `mergedlowercase.go` |
 | Go test files | `merged_test.go` (only underscore exception) |
-| Directories & config files | `kebab-case/` |
+| Directories & config | `kebab-case/` |
 | Go exported symbols | `PascalCase` |
 | Go unexported symbols | `camelCase` |
 | Python functions/vars | `snake_case` |
-| Python classes | `PascalCase` |
-| JSON API keys | `camelCase` |
+| JSON keys | `camelCase` |
 | HTTP endpoints | `kebab-case` |
-| Env vars | `SCREAMING_SNAKE_CASE` |
-| SQLite schema columns | `camelCase` |
+| Env vars / DB keys | `SCREAMING_SNAKE_CASE` |
 
-Zero tolerance: never introduce `snake_case` into Go or TypeScript code.
-
----
-
-## 7. Build & Test Gate
-
-You must run these checks **before opening a PR**. Do not open a PR if any check fails.
-
+### Build & Test Gate
+Codex must run before opening any PR:
 ```sh
-# Go — build all packages
 cd cmd/stem && go build ./...
-
-# Go — run all tests
 cd cmd/stem && go test ./...
-
-# Python — syntax check (if Python files were modified)
-python -m py_compile <modified_file.py>
-
-# Full suite (if Makefile target exists)
-make check-all
 ```
 
-Paste the terminal output of all checks into the PR description as evidence.
+### PR Rules
+- Open as **Draft PR** only.
+- Title: `<type>(<scope>): <description>`
+- Body must include: originating issue link, change summary, terminal output of build/test.
+- No merge. No auto-merge. No branch deletion.
 
 ---
 
-## 8. Pull Request Rules
+## 4. Genotype: codex-delegator
 
-- Open as a **Draft PR** only. Never mark Ready for Review — that is the human's decision.
-- Title format: `<type>(<scope>): <description>` (mirrors commit format).
-- PR body must include:
-  - Link to the originating GitHub Issue.
-  - Summary of changes (what files, what changed, why).
-  - Build/test output evidence (copy-pasted terminal output).
-  - Any deviations from the Implementation Plan clearly flagged.
-- Do **not** merge the PR. Do **not** enable auto-merge. Do **not** delete the branch after opening.
+A Tendril Genotype that instructs the agent to delegate a task to Codex and return its output. Stored at `.tendril/genotypes/codex-delegator.json`.
+
+This allows `tendril sequence` or a chat prompt to trigger Codex via OpenTendril without any manual shell invocation.
 
 ---
 
-## 9. Protected Files
-
-Never modify these files unless they are explicitly named in the approved Implementation Plan:
-
-- `AGENTS.md`, `ANTIGRAVITY.md`, `CODEX.md`, `GUARDRAILS.md`
-- `ARCHITECTURE.md`, `SYNTHETIC-TAXONOMY.md`
-- `.env`, `docker-compose.yml`
-- `cmd/stem/main.go`
-
-If a plan requires modifying a protected file, re-confirm with the human before proceeding.
-
----
-
-## 10. Forbidden Actions
+## 5. Forbidden Actions (Codex must never do these)
 
 | Action | Status |
 |---|---|
 | Push to `main` | ❌ Never |
-| Force-push to shared branch | ❌ Never (without explicit instruction) |
 | Merge a PR | ❌ Never |
 | Enable auto-merge | ❌ Never |
 | Delete a remote branch | ❌ Never |
-| Close or reopen a PR/Issue | ❌ Never (unless explicitly instructed) |
-| Introduce a new dependency without plan approval | ❌ Never |
-| Use `snake_case` in Go/TS/JS code | ❌ Never |
+| Touch files not in the task prompt | ❌ Never |
+| Use `snake_case` in Go/TS code | ❌ Never |
 | Commit without GPG signature | ❌ Never |
 
 ---
 
-## 11. The Builder Workflow (Summary)
+## 6. Roadmap: From Pass-Through to Native
 
 ```
-1. Read the approved Implementation Plan issue carefully.
-2. Run Git Preflight (Section 2). Confirm 0 0.
-3. Create feature branch.
-4. Implement exactly the approved delta — no more, no less.
-5. Run build + test gate (Section 7).
-6. Commit (signed, correct identity).
-7. Push branch.
-8. Open Draft PR with evidence.
-9. Stop. The human reviews and merges.
+Phase 1 (Now):      OpenTendril calls Codex via execCommand — testing the pipeline
+Phase 2:            OpenTendril generates the task prompt autonomously from an Issue
+Phase 3:            OpenTendril's own Sprout replaces Codex for most tasks
+Phase 4 (Target):   Codex becomes optional — invoked only for tasks requiring its
+                    specific model capabilities (e.g. very large context windows)
 ```
 
 ---
 
-## 12. OpenTendril Botanical Glossary (Quick Reference)
-
-Understanding the naming conventions avoids confusion:
+## 7. Botanical Glossary (Quick Reference)
 
 | Term | Maps To |
 |---|---|
 | Stem | Go orchestrator (`cmd/stem`) |
-| Sprout | Ephemeral Docker container (one per task execution) |
-| Tendril | The Python/Go worker runtime inside the Sprout |
-| Terrarium | The isolated execution sandbox |
-| Rhizome | Background AST indexer & project map engine (`internal/rhizome`) |
-| Genotype | System prompt / persona definition (`.tendril/genotypes/`) |
+| Sprout | Ephemeral Docker container |
+| Tendril | Python/Go worker runtime inside the Sprout |
+| Terrarium | Isolated execution sandbox |
+| Rhizome | Background AST indexer (`internal/rhizome`) |
+| Genotype | System prompt / persona (`.tendril/genotypes/`) |
 | Plasmid | Modular context block injected into a Genotype |
-| Transcript | The one-off task prompt for a single execution run |
-| Sequence | A chained multi-step workflow |
-| Mycorrhizal Network | The external LLM (Codex, Antigravity, etc.) |
-| Substrate | The host repository being worked on |
-| Epigenetics | Accumulated learnings written back to `.tendril/genome/` |
+| Transcript | One-off task prompt for a single execution |
+| Sequence | Chained multi-step workflow |
+| Mycorrhizal Network | External LLMs — Codex, Antigravity, Ollama, etc. |
+| Substrate | Host repository being worked on |
+| Epigenetics | Accumulated learnings in `.tendril/genome/` |

@@ -1,6 +1,6 @@
 # ANTIGRAVITY.md — Architect Agent Operating Instructions
 
-> **Authority Hierarchy:** `AGENTS.md` > this file > `CODEX.md` > session prompts.
+> **Authority Hierarchy:** `AGENTS.md` > this file > session prompts.
 > When this file conflicts with `AGENTS.md`, `AGENTS.md` wins canonical precedence. Always.
 
 ---
@@ -17,7 +17,7 @@ Antigravity operates as the **Architect Agent** for the OpenTendril project. Its
    * **Workflow:**
      1. Draft a **Design RFC** issue and obtain human approval (Gate A).
      2. Draft an **Implementation Plan** issue mapping the task slices (Gate B).
-     3. Delegate the build phase to the **Codex Builder Agent** (see `CODEX.md` for its operating rules).
+     3. Route implementation tasks through OpenTendril's own pipeline. External tools (e.g. Codex CLI, see `CODEX.md`) may be invoked as `execCommand` targets by a Sprout — this is a stepping stone while OpenTendril's self-building capability matures.
      4. Review the resulting PR for code drift against the approved spec before human merge (Gate C).
 
 ---
