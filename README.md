@@ -21,6 +21,7 @@ To understand OpenTendril, you must understand its anatomy:
 
 > 📖 **Read the full philosophy:** Explore the [Synthetic Biological Taxonomy](SYNTHETIC-TAXONOMY.md) to understand the concept design.
 > 🛠️ **Read the engineering guide:** Check the [Material & Architecture Guide](TENDRIL-GUIDE.md) to understand how these concepts are physically built (Go, Docker, and protocols).
+> 📐 **Visual architecture diagrams:** See [docs/ARCHITECTURE-TAXONOMY.md](docs/ARCHITECTURE-TAXONOMY.md) for Mermaid diagrams of the full execution pipeline, Genotype hierarchy, and security trust boundaries.
 
 ---
 

@@ -67,3 +67,14 @@ implementation_plan.md
 .tendril/dreamer.db
 .tendril/dreamer.key
 .tendril/terrarium/
+substrates.yaml
+
+# Compiled stem binary in root (use cmd/stem/stem path)
+/stem
+
+# Runtime tendril data (cryptographic keys, DBs, runtime scoring)
+.tendril/rhizome.db
+.tendril/rhizome.key
+.tendril/dreamer.db
+.tendril/dreamer.key
+.tendril/genome/fitness.json

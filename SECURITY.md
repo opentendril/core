@@ -43,6 +43,24 @@ OpenTendril is designed under a Zero-Trust architecture. We assume that the code
 
 ---
 
+## 5. Genotype & Substrate Trust Boundaries
+
+> 📐 **Visual reference:** See [docs/ARCHITECTURE-TAXONOMY.md](docs/ARCHITECTURE-TAXONOMY.md) for diagrams of the full security trust model.
+
+OpenTendril's host execution capability introduces a specific threat: an autonomous agent operating inside a workspace Terrarium could potentially modify `.tendril/substrates.yaml` to inject `provider: host`, causing its next Sequence run to execute arbitrary commands directly on the host machine — completely bypassing Docker isolation.
+
+This is defended by the **config-origin trust model**, enforced in the Stem's Substrate resolver:
+
+* **Workspace Config paths** (`./.tendril/substrates.yaml`, `./substrates.yaml`): The `provider` and `command` fields are **stripped at parse time**. An agent inside the Terrarium can write these files, but the values will never reach the Terrarium factory.
+* **System Config paths** (`~/.opentendril/substrates.yaml`, `/etc/opentendril/substrates.yaml`): These directories are **never mounted into any Terrarium container**. Only a human operator with filesystem access to the host can define host execution substrates here.
+* **Runtime environment gate:** Even with a valid System Config path, host execution is blocked unless `TENDRIL_ALLOW_HOST_EXECUTION=true` is set in the Stem process environment.
+
+The same principle applies to **Genotypes**: System Genotypes shipped in the System Config path carry an immutable `deny` list of blocked Plasmids (tools). An agent cannot grant itself additional tool access by modifying its own Genotype, because System Genotypes are never resident in the workspace.
+
+See [Issue #115](https://github.com/opentendril/core/issues/115) for the full System Genotype RFC.
+
+---
+
 ## 🏗️ 12-Factor App Compliance
 
 To ensure enterprise-grade scaling, portability, and DevOps compatibility, OpenTendril aligns with the **12-Factor App methodology**:
