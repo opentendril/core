@@ -46,8 +46,8 @@ type tendrilRunner interface {
 
 var (
 	ensureSproutImageFn   = ensureSproutImage
-	startTerrariumSessionFn = func(ctx context.Context, providerName, imageName, mountPath string, extraEnv ...string) (toolSession, error) {
-		return startTerrariumSession(ctx, providerName, imageName, mountPath, extraEnv...)
+	startTerrariumSessionFn = func(ctx context.Context, providerName, imageName, mountPath string, command []string, extraEnv ...string) (toolSession, error) {
+		return startTerrariumSession(ctx, providerName, imageName, mountPath, command, extraEnv...)
 	}
 	newAgentFn = func(ctx context.Context, workspace string, genotypeRoot string, genotypeName string, client llmCaller, session toolSession) (tendrilRunner, error) {
 		return newAgent(ctx, workspace, genotypeRoot, genotypeName, client, session)
@@ -232,8 +232,12 @@ func (d *DockerOrchestrator) RunTendril(ctx context.Context, taskPrompt string) 
 		return "", err
 	}
 
+	// Use the substrate-configured provider if set, otherwise fall back to env/default.
 	providerName := resolveTerrariumProviderName(d)
-	session, err := startTerrariumSessionFn(ctx, providerName, imageName, mountPath, extraEnv...)
+	if plan.provider != "" {
+		providerName = plan.provider
+	}
+	session, err := startTerrariumSessionFn(ctx, providerName, imageName, mountPath, plan.command, extraEnv...)
 	if err != nil {
 		if cleanup != nil {
 			cleanup()
@@ -519,7 +523,7 @@ type terrariumToolSession struct {
 	terrarium terrarium.Terrarium
 }
 
-func startTerrariumSession(ctx context.Context, providerName, imageName string, mountPath string, extraEnv ...string) (toolSession, error) {
+func startTerrariumSession(ctx context.Context, providerName, imageName string, mountPath string, command []string, extraEnv ...string) (toolSession, error) {
 	provider, err := terrarium.NewProvider(ctx, providerName)
 	if err != nil {
 		return nil, err
@@ -541,6 +545,7 @@ func startTerrariumSession(ctx context.Context, providerName, imageName string, 
 				Target: "/app",
 			},
 		},
+		Command:     command,
 		Environment: buildTerrariumEnvironment(extraEnv...),
 	})
 	if err != nil {
@@ -559,7 +564,7 @@ func resolveTerrariumProviderName(d *DockerOrchestrator) string {
 	}
 
 	switch strings.ToLower(strings.TrimSpace(d.Substrate)) {
-	case terrarium.ProviderDocker, terrarium.ProviderGVisor:
+	case terrarium.ProviderDocker, terrarium.ProviderGVisor, terrarium.ProviderHost:
 		return strings.ToLower(strings.TrimSpace(d.Substrate))
 	default:
 		return terrarium.ProviderDocker
@@ -1158,7 +1163,7 @@ func cloneNamedForeignSubstrate(name, url, branch, authRef, authValue string) (s
 	}
 	shadowPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s-%s", prefix, runID))
 
-	args := []string{"clone"}
+	args := []string{"-c", "protocol.ext.allow=never", "clone"}
 	if branch != "" {
 		args = append(args, "--branch", branch)
 	}
@@ -1178,7 +1183,7 @@ func cloneNamedForeignSubstrate(name, url, branch, authRef, authValue string) (s
 		url = strings.Replace(url, "https://", "https://"+resolvedAuthValue+"@", 1)
 	}
 
-	args = append(args, url, shadowPath)
+	args = append(args, "--", url, shadowPath)
 
 	cmd := exec.Command("git", args...)
 	if resolvedAuthRef != "" && resolvedAuthValue != "" {

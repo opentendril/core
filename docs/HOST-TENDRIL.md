@@ -4,6 +4,8 @@ OpenTendril primarily uses **Docker** (or gVisor/Firecracker) to run "Sprouts" i
 
 For this, OpenTendril provides the `host` Terrarium provider.
 
+> 📐 **Architecture diagrams:** See [ARCHITECTURE-TAXONOMY.md](./ARCHITECTURE-TAXONOMY.md) for full visual diagrams of the Terrarium Provider hierarchy and security trust boundaries.
+
 ## Security Posture: Default Deny
 
 > [!CAUTION]
@@ -55,3 +57,19 @@ steps:
 ```
 
 Because the Python Sprout is running directly on your machine instead of inside a Docker container, the `execCommand` tool will invoke `codex` directly from your local `$PATH`, perfectly passing through authentication tokens without complex mounting.
+
+---
+
+## Trust Boundary: Why Workspace Config Cannot Escalate to Host
+
+A key architectural principle is that **workspace-resident agents cannot grant themselves host execution privileges**, even if they can write to `.tendril/` files in the workspace.
+
+The Stem enforces this with a two-layer gate:
+
+1. **Field stripping at parse time:** When `substrates.yaml` is loaded from a workspace path (`./.tendril/substrates.yaml` or `./substrates.yaml`), the Stem's `resolveSubstrateExecutionPlan` function strips the `provider` and `command` fields before they reach the Terrarium factory. Any `provider: host` declared in a workspace config silently falls back to `provider: docker`.
+
+2. **System Config path required:** For `provider: host` to be honoured, the `substrates.yaml` must be loaded from a **System Config path** (`~/.opentendril/substrates.yaml` or `/etc/opentendril/substrates.yaml`). These directories are **never mounted** into any Terrarium container, making them physically inaccessible to any agent.
+
+3. **Runtime environment gate:** Even if both conditions above are met, the Stem refuses to start a host Terrarium unless `TENDRIL_ALLOW_HOST_EXECUTION=true` is present in the Stem's runtime environment — a decision that must be made by a human operator.
+
+This means the attack chain `agent writes substrates.yaml → poisons provider: host → escalates to host execution` is blocked at every layer.

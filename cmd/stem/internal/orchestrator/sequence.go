@@ -1064,6 +1064,7 @@ func runPhenotypicSelection(ctx context.Context, seq *Sequence, step *SequenceSt
 	}
 
 	selectionCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	cleanupCtx := context.WithoutCancel(ctx)
 
@@ -1212,6 +1213,13 @@ func runSequenceSprout(ctx context.Context, orch *DockerOrchestrator, taskPrompt
 	}
 
 	sourcePath := orch.Substrate
+	
+	if config, _ := LoadSubstratesConfig(""); config != nil {
+		if plan, err := resolveSubstrateExecutionPlan(orch, config); err == nil && plan != nil && plan.hostPath != "" {
+			sourcePath = plan.hostPath
+		}
+	}
+
 	if sourcePath == "" {
 		if wd, err := os.Getwd(); err == nil {
 			sourcePath = wd
@@ -1306,7 +1314,20 @@ func runSequenceSproutAtPath(ctx context.Context, orch *DockerOrchestrator, task
 		return result, err
 	}
 
-	session, err := startTerrariumSessionFn(ctx, resolveTerrariumProviderName(orch), imageName, mountPath)
+	substratesConfig, _ := LoadSubstratesConfig("")
+	sequencePlan, planErr := resolveSubstrateExecutionPlan(orch, substratesConfig)
+	
+	providerName := resolveTerrariumProviderName(orch)
+	if planErr == nil && sequencePlan != nil && sequencePlan.provider != "" {
+		providerName = sequencePlan.provider
+	}
+
+	var command []string
+	if sequencePlan != nil {
+		command = sequencePlan.command
+	}
+
+	session, err := startTerrariumSessionFn(ctx, providerName, imageName, mountPath, command)
 	if err != nil {
 		return result, err
 	}
@@ -1521,6 +1542,12 @@ func resolveSequenceSubstrate(root, substrate string) string {
 	trimmed := strings.TrimSpace(substrate)
 	if trimmed == "" {
 		return root
+	}
+
+	if config, err := LoadSubstratesConfig(""); err == nil {
+		if spec, isName := ResolveSubstrate(trimmed, config); isName && spec != nil {
+			return trimmed
+		}
 	}
 
 	if filepath.IsAbs(trimmed) {
