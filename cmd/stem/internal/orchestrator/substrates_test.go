@@ -270,7 +270,7 @@ substrates:
 	ensureSproutImageFn = func(ctx context.Context, imageName string) error {
 		return nil
 	}
-	startTerrariumSessionFn = func(ctx context.Context, providerName, imageName, mountPath string, extraEnv ...string) (toolSession, error) {
+	startTerrariumSessionFn = func(ctx context.Context, providerName, imageName, mountPath string, command []string, extraEnv ...string) (toolSession, error) {
 		capturedExtraEnv = append([]string{}, extraEnv...)
 		repoMapPath := filepath.Join(mountPath, ".tendril", "genome", "repomap.md")
 		content, err := os.ReadFile(repoMapPath)
