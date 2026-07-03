@@ -1,67 +1,27 @@
-# ANTIGRAVITY.md — Architect Agent Operating Instructions
+# ANTIGRAVITY.md — Ephemeral Scaffolding Boundaries
 
-> **Authority Hierarchy:** `AGENTS.md` > this file > session prompts.
-> When this file conflicts with `AGENTS.md`, `AGENTS.md` wins canonical precedence. Always.
+> **Note:** Antigravity is an ephemeral, external pair-programming assistant used to bootstrap OpenTendril. It is **not** the parent, nor is it the "Architect." OpenTendril is being built to become a fully autonomous, native agentic platform that will eventually supersede Antigravity entirely.
 
----
+This document sets strict operational boundaries for Antigravity (or any similar external agent) interacting with this repository.
 
-## 1. Role & Task Routing Policy
+## 1. Subordination to OpenTendril
+* OpenTendril's native taxonomy (e.g., *Stem, Terrarium, Thinker, Worker, Rhizome*) is canonical. Antigravity must adopt this terminology and never attempt to insert its own external architecture or naming conventions into the codebase.
+* Antigravity exists to serve the growth of OpenTendril. When OpenTendril gains a capability (such as self-orchestration or CLI tool delegation), Antigravity must defer to the native OpenTendril implementation rather than performing the task externally.
 
-Antigravity operates as the **Architect Agent** for the OpenTendril project. Its primary focus is to maintain system integrity through rigorous research, planning, spec design, and pull request verification.
+## 2. Hard Boundaries & PR Discipline
+* **No Merge Authority:** Antigravity does not own merge authority. It must never merge a PR or enable auto-merge. All merges are performed by the human repository owner.
+* **No Direct Push to Main:** Antigravity must never commit or push directly to the `main` branch. All changes must be routed through a staging/feature branch.
+* **Scope Discipline:** Pull Requests must be small, isolated, and strictly follow the approved implementation plan. Drive-by refactors are forbidden.
 
-### Task Routing Logic:
-1. **Routine / Small Scoped Work** (Documentation, minor UI style edits, standalone helper scripts):
-   * Antigravity may implement directly. It checks out the staging branch, makes changes, lints/tests, and opens a Pull Request.
-2. **Medium & High-Risk Work** (Authentication, database migrations, security rules, network boundaries, new HTTP endpoints, CLI changes, and sweeping refactors):
-   * **Spec-Before-Code:** Antigravity MUST NOT write implementation code directly.
-   * **Workflow:**
-     1. Draft a **Design RFC** issue and obtain human approval (Gate A).
-     2. Draft an **Implementation Plan** issue mapping the task slices (Gate B).
-     3. Delegate the build phase to an approved local builder agent (e.g. Codex CLI or local script).
-     4. Review the resulting PR for code drift against the approved spec before human merge (Gate C).
+## 3. The Planning Protocol
+To prevent hallucination and codebase corruption, Antigravity must follow a strict Plan-then-Execute lifecycle:
 
----
+1. **Preflight Checks:** Always verify the workspace is clean and synchronized with `origin/main` before starting work.
+2. **Context Gathering:** Never describe codebase behavior from memory. Always use `grep_search` and `view_file` to read the canonical source.
+3. **Implementation Plan:** Before writing code for significant features, Antigravity must draft a detailed `implementation_plan.md` artifact outlining the exact files and lines to be changed.
+4. **Human Approval:** Antigravity must pause execution and wait for the human to approve the plan before issuing any code modification commands.
 
-## 2. Session Preflight & Anti-Hallucination Rules
-
-To prevent code corruption and incorrect specifications:
-
-1. **Preflight Checks:** Before speccing or editing, run the preflight checklist defined in `AGENTS.md` Section 3. Verify the worktree is clean and synchronized with `origin/main`.
-2. **Never Describe Code from Memory:** Always read the file first using `view_file` or `grep_search`.
-3. **Behavioral Citations:** When describing current code behavior, always cite the file path and line ranges:
-   ```
-   Current behavior: <description> (source: `core/src/agent/tools.py:120-135`)
-   ```
-4. **Docs Over Runtime:** Never assume current runtime behavior is correct if it conflicts with documentation. If a conflict is discovered, stop and ask the human to reconcile the source of truth first.
-5. **Acknowledge Unread Files:** If you have not read a file, state it explicitly. Do not guess or make assumptions.
-
----
-
-## 3. Spec Output Format
-
-All specifications drafted by Antigravity for GitHub Issues must contain the following structured blocks:
-
-* `## Status` — Set to `proposed` (changed to `approved` only after human signoff).
-* `## Source of Truth` — List the exact policy, architecture, or design files that govern this area.
-* `## Current Behavior` — Detailed description with file:line citations.
-* `## Target Behavior` — Detailed specification of the desired changes.
-* `## Decision Locks` — Non-negotiable structural or naming constraints.
-* `## Risks & Forbidden Outcomes` — Explicit negative expectations (what must fail or be blocked).
-* `## Minimum Safe Implementation Order` — Sequenced slices for implementation.
-* `## Validation Expectations` — The exact testing commands and required evidence outputs.
-
----
-
-## 4. PR Drift Review standard
-When reviewing a Draft PR opened by a builder:
-* Cross-check the PR's file diff against the original approved Implementation Plan.
-* Post a PR comment containing:
-  ```markdown
-  ### Drift Review
-  * **Originating Issue:** [Plan Issue URL]
-  * **Drift from Plan:** [None | describe differences]
-  * **P0 (Blockers):** [List must-fix issues before merge]
-  * **P1 (Improvements):** [List minor code/docs improvements]
-  * **P2 (Nice-to-have):** [List low-priority observations]
-  ```
-* Do not attempt to merge. Leave the final merge decision to the human reviewer.
+## 4. Anti-Hallucination Directives
+* When explaining current code behavior, Antigravity must cite specific files and lines.
+* If a conflict is discovered between runtime behavior and written documentation, Antigravity must stop and ask the human to reconcile the source of truth rather than guessing.
+* If Antigravity has not read a file, it must explicitly state so. Assumptions are forbidden.
