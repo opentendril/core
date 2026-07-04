@@ -59,6 +59,7 @@ type Agent struct {
 	session         toolSession
 	tools           []ToolDefinition
 	toolIndex       map[string]ToolDefinition
+	denyPlasmids    []string
 	messages        []llm.Message
 	transcript      strings.Builder
 }
@@ -94,6 +95,12 @@ func newAgent(ctx context.Context, workspace string, genotypeRoot string, genoty
 	if err != nil {
 		return nil, err
 	}
+	var instructions string
+	var denyPlasmids []string
+	if genotypeContext != nil {
+		instructions = strings.TrimSpace(genotypeContext.Instructions)
+		denyPlasmids = genotypeContext.DenyPlasmids
+	}
 
 	tools, err := session.ListAvailableTools(ctx)
 	if err != nil {
@@ -103,25 +110,39 @@ func newAgent(ctx context.Context, workspace string, genotypeRoot string, genoty
 		return nil, fmt.Errorf("sprout reported no available tools")
 	}
 
-	toolIndex := make(map[string]ToolDefinition, len(tools))
+	toolIndex := make(map[string]ToolDefinition)
+	var filteredTools []ToolDefinition
 	for _, tool := range tools {
 		if strings.TrimSpace(tool.Name) == "" {
 			continue
 		}
-		toolIndex[tool.Name] = tool
+		
+		denied := false
+		for _, deniedName := range denyPlasmids {
+			if strings.EqualFold(tool.Name, deniedName) {
+				denied = true
+				break
+			}
+		}
+		
+		if !denied {
+			toolIndex[tool.Name] = tool
+			filteredTools = append(filteredTools, tool)
+		}
 	}
 	if len(toolIndex) == 0 {
-		return nil, fmt.Errorf("sprout tool discovery returned only empty tool names")
+		return nil, fmt.Errorf("sprout tool discovery returned only empty or denied tool names")
 	}
 
 	return &Agent{
 		workspace:       workspace,
-		genotypeContext: genotypeContext,
+		genotypeContext: instructions,
 		genomeContext:   genomeContext,
 		client:          client,
 		session:         session,
-		tools:           tools,
+		tools:           filteredTools,
 		toolIndex:       toolIndex,
+		denyPlasmids:    denyPlasmids,
 	}, nil
 }
 
@@ -208,6 +229,22 @@ func (a *Agent) executeTool(ctx context.Context, call ToolCall) (ToolResponse, s
 			Error:  fmt.Sprintf("unsupported tool %q. available tools: %s", call.Tool, strings.Join(a.availableToolNames(), ", ")),
 		}
 		return response, renderToolObservation(call.Tool, response), nil
+	}
+
+	if call.Tool == "injectPlasmid" {
+		if nameRaw, ok := call.Arguments["name"]; ok {
+			if name, ok := nameRaw.(string); ok {
+				for _, denied := range a.denyPlasmids {
+					if strings.EqualFold(name, denied) {
+						response := ToolResponse{
+							Status: "error",
+							Error:  fmt.Sprintf("access denied: plasmid %q is restricted by the active system genotype", name),
+						}
+						return response, renderToolObservation(call.Tool, response), nil
+					}
+				}
+			}
+		}
 	}
 
 	response, err := a.session.Call(ctx, call)
@@ -408,25 +445,48 @@ func loadGenomeContext(workspace string) (string, error) {
 	return strings.TrimSpace(builder.String()), nil
 }
 
-func loadGenotypeContext(workspace string, genotypeName string) (string, error) {
+func getSystemGenotypePaths(name string) []string {
+	var paths []string
+	if configDir, err := os.UserConfigDir(); err == nil {
+		paths = append(paths, filepath.Join(configDir, "opentendril", "genotypes", name+".json"))
+	}
+	paths = append(paths, filepath.Join("/etc", "opentendril", "genotypes", name+".json"))
+	return paths
+}
+
+func loadGenotypeContext(workspace string, genotypeName string) (*genotypeDefinition, error) {
 	genotypeName = strings.TrimSpace(genotypeName)
 	if genotypeName == "" {
-		return "", nil
+		return nil, nil
 	}
 
-	genotypePath := filepath.Join(workspace, ".tendril", "genotypes", genotypeName+".json")
-	content, err := os.ReadFile(genotypePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
+	var content []byte
+	var err error
+	var genotypePath string
+
+	for _, p := range getSystemGenotypePaths(genotypeName) {
+		if c, errRead := os.ReadFile(p); errRead == nil {
+			content = c
+			genotypePath = p
+			break
 		}
-		return "", fmt.Errorf("read genotype file %s: %w", genotypePath, err)
+	}
+
+	if content == nil {
+		genotypePath = filepath.Join(workspace, ".tendril", "genotypes", genotypeName+".json")
+		content, err = os.ReadFile(genotypePath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("read genotype file %s: %w", genotypePath, err)
+		}
 	}
 
 	var genotype genotypeDefinition
 	if err := json.Unmarshal(content, &genotype); err != nil {
-		return "", fmt.Errorf("decode genotype %s: %w", genotypePath, err)
+		return nil, fmt.Errorf("decode genotype %s: %w", genotypePath, err)
 	}
 
-	return strings.TrimSpace(genotype.Instructions), nil
+	return &genotype, nil
 }

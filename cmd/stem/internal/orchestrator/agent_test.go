@@ -148,3 +148,90 @@ func TestParseModelResponseFinalText(t *testing.T) {
 		t.Fatalf("expected no tool call, got %+v", call)
 	}
 }
+
+func TestSystemGenotypePriority(t *testing.T) {
+	workspace := t.TempDir()
+	genotypeName := "test-priority"
+
+	// Mock UserConfigDir via environment variable for tests
+	origConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	t.Cleanup(func() { os.Setenv("XDG_CONFIG_HOME", origConfigHome) })
+	
+	sysConfigDir := filepath.Join(workspace, "sysconfig")
+	os.Setenv("XDG_CONFIG_HOME", sysConfigDir)
+
+	sysGenotypeDir := filepath.Join(sysConfigDir, "opentendril", "genotypes")
+	os.MkdirAll(sysGenotypeDir, 0o755)
+	sysContent := `{"name":"test-priority","instructions":"I am the system genotype","denyPlasmids":["evilTool"]}`
+	os.WriteFile(filepath.Join(sysGenotypeDir, genotypeName+".json"), []byte(sysContent), 0o644)
+
+	workspaceGenotypeDir := filepath.Join(workspace, ".tendril", "genotypes")
+	os.MkdirAll(workspaceGenotypeDir, 0o755)
+	workspaceContent := `{"name":"test-priority","instructions":"I am the workspace override","denyPlasmids":[]}`
+	os.WriteFile(filepath.Join(workspaceGenotypeDir, genotypeName+".json"), []byte(workspaceContent), 0o644)
+
+	genotype, err := loadGenotypeContext(workspace, genotypeName)
+	if err != nil {
+		t.Fatalf("loadGenotypeContext failed: %v", err)
+	}
+
+	if genotype.Instructions != "I am the system genotype" {
+		t.Errorf("expected system genotype instructions, got %q", genotype.Instructions)
+	}
+	if len(genotype.DenyPlasmids) != 1 || genotype.DenyPlasmids[0] != "evilTool" {
+		t.Errorf("expected denyPlasmids=[evilTool], got %v", genotype.DenyPlasmids)
+	}
+}
+
+func TestAgentDenyPlasmidsFilter(t *testing.T) {
+	workspace := t.TempDir()
+
+	origConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	t.Cleanup(func() { os.Setenv("XDG_CONFIG_HOME", origConfigHome) })
+	sysConfigDir := filepath.Join(workspace, "sysconfig")
+	os.Setenv("XDG_CONFIG_HOME", sysConfigDir)
+	
+	sysGenotypeDir := filepath.Join(sysConfigDir, "opentendril", "genotypes")
+	os.MkdirAll(sysGenotypeDir, 0o755)
+	sysContent := `{"name":"secure","instructions":"I am secure","denyPlasmids":["evilTool","injectPlasmidTarget"]}`
+	os.WriteFile(filepath.Join(sysGenotypeDir, "secure.json"), []byte(sysContent), 0o644)
+
+	client := &fakeLLM{
+		responses: []string{
+			`{"tool":"evilTool"}`, // Should fail
+			`{"tool":"injectPlasmid","arguments":{"name":"injectPlasmidTarget"}}`, // Should fail
+			`{"final":"done"}`,
+		},
+	}
+	session := &fakeSession{
+		tools: []ToolDefinition{
+			{Name: "evilTool"},
+			{Name: "safeTool"},
+			{Name: "injectPlasmid"},
+		},
+	}
+
+	agent, err := newAgent(context.Background(), workspace, workspace, "secure", client, session)
+	if err != nil {
+		t.Fatalf("newAgent returned error: %v", err)
+	}
+
+	if _, hasEvil := agent.toolIndex["evilTool"]; hasEvil {
+		t.Errorf("evilTool was not filtered out of toolIndex")
+	}
+	if _, hasSafe := agent.toolIndex["safeTool"]; !hasSafe {
+		t.Errorf("safeTool was incorrectly filtered out")
+	}
+
+	result, err := agent.Run(context.Background(), "do it")
+	if err != nil {
+		t.Fatalf("agent.Run failed: %v", err)
+	}
+
+	if !strings.Contains(result.Transcript, "unsupported tool") || !strings.Contains(result.Transcript, "evilTool") {
+		t.Errorf("expected transcript to contain error about unsupported tool evilTool, got: %s", result.Transcript)
+	}
+	if !strings.Contains(result.Transcript, "restricted by the active system genotype") {
+		t.Errorf("expected transcript to contain error about restricted injectPlasmid target, got: %s", result.Transcript)
+	}
+}

@@ -167,9 +167,28 @@ func (h *MCPHandler) ProcessMCPMessage(reqBytes []byte) []byte {
 		}
 
 		root := resolveRepoRoot("")
-		filePath := filepath.Join(root, ".tendril", "genotypes", name+".json")
-		content, err := os.ReadFile(filePath)
-		if err != nil {
+		
+		var searchDirs []string
+		if configDir, err := os.UserConfigDir(); err == nil {
+			searchDirs = append(searchDirs, filepath.Join(configDir, "opentendril", "genotypes"))
+		}
+		searchDirs = append(searchDirs, filepath.Join("/etc", "opentendril", "genotypes"))
+		searchDirs = append(searchDirs, filepath.Join(root, ".tendril", "genotypes"))
+
+		var content []byte
+		var err error
+		for _, dir := range searchDirs {
+			filePath := filepath.Join(dir, name+".json")
+			if c, readErr := os.ReadFile(filePath); readErr == nil {
+				content = c
+				err = nil
+				break
+			} else {
+				err = readErr
+			}
+		}
+
+		if content == nil {
 			if os.IsNotExist(err) {
 				return h.formatError(req.ID, -32602, "Resource not found", nil)
 			}
@@ -748,6 +767,7 @@ type genotypeMetadata struct {
 	Description  string   `json:"description,omitempty"`
 	Instructions string   `json:"instructions"`
 	Plasmids     []string `json:"plasmids,omitempty"`
+	DenyPlasmids []string `json:"denyPlasmids,omitempty"`
 }
 
 func syncGenotypeIndex() error {
@@ -760,50 +780,68 @@ func syncGenotypeIndex() error {
 }
 
 func collectGenotypeIndex(root string) (genotypeIndex, error) {
-	genotypesDir := filepath.Join(root, ".tendril", "genotypes")
-	entries, err := os.ReadDir(genotypesDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return genotypeIndex{Genotypes: []genotypeIndexEntry{}}, nil
-		}
-		return genotypeIndex{}, fmt.Errorf("read genotypes directory: %w", err)
-	}
+	var searchDirs []string
 
-	index := genotypeIndex{Genotypes: []genotypeIndexEntry{}}
+	if configDir, err := os.UserConfigDir(); err == nil {
+		searchDirs = append(searchDirs, filepath.Join(configDir, "opentendril", "genotypes"))
+	}
+	searchDirs = append(searchDirs, filepath.Join("/etc", "opentendril", "genotypes"))
+	searchDirs = append(searchDirs, filepath.Join(root, ".tendril", "genotypes"))
+
+	genotypeMap := make(map[string]genotypeIndexEntry)
 	var errs []error
 
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
-			continue
-		}
-
-		filePath := filepath.Join(genotypesDir, entry.Name())
-		content, err := os.ReadFile(filePath)
+	for _, dir := range searchDirs {
+		entries, err := os.ReadDir(dir)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("read genotype %s: %w", entry.Name(), err))
+			if !os.IsNotExist(err) {
+				errs = append(errs, fmt.Errorf("read genotypes directory %s: %w", dir, err))
+			}
 			continue
 		}
 
-		var genotype genotypeMetadata
-		if err := json.Unmarshal(content, &genotype); err != nil {
-			errs = append(errs, fmt.Errorf("decode genotype %s: %w", entry.Name(), err))
-			continue
-		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
+				continue
+			}
 
-		name := strings.TrimSpace(genotype.Name)
-		if name == "" {
-			name = strings.TrimSuffix(entry.Name(), ".json")
-		}
+			filePath := filepath.Join(dir, entry.Name())
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("read genotype %s: %w", filePath, err))
+				continue
+			}
 
-		description := strings.TrimSpace(genotype.Description)
-		if description == "" {
-			description = firstNWords(genotype.Instructions, 20)
-		}
+			var genotype genotypeMetadata
+			if err := json.Unmarshal(content, &genotype); err != nil {
+				errs = append(errs, fmt.Errorf("decode genotype %s: %w", filePath, err))
+				continue
+			}
 
-		index.Genotypes = append(index.Genotypes, genotypeIndexEntry{
-			Name:        name,
-			Description: description,
-		})
+			name := strings.TrimSpace(genotype.Name)
+			if name == "" {
+				name = strings.TrimSuffix(entry.Name(), ".json")
+			}
+
+			if _, exists := genotypeMap[name]; exists {
+				continue
+			}
+
+			description := strings.TrimSpace(genotype.Description)
+			if description == "" {
+				description = firstNWords(genotype.Instructions, 20)
+			}
+
+			genotypeMap[name] = genotypeIndexEntry{
+				Name:        name,
+				Description: description,
+			}
+		}
+	}
+
+	index := genotypeIndex{Genotypes: make([]genotypeIndexEntry, 0, len(genotypeMap))}
+	for _, entry := range genotypeMap {
+		index.Genotypes = append(index.Genotypes, entry)
 	}
 
 	sort.Slice(index.Genotypes, func(i, j int) bool {

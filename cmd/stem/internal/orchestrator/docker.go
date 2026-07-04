@@ -1227,22 +1227,29 @@ func pushTerrariumCommit(ctx context.Context, mountPath, branch string) error {
 }
 
 func stagePlasmidsForGenotype(sourcePath, targetPath, genotypeName string) {
-	genotypePath := filepath.Join(sourcePath, ".tendril", "genotypes", genotypeName+".json")
-	content, err := os.ReadFile(genotypePath)
+	genotype, err := loadGenotypeContext(sourcePath, genotypeName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "⚠️ Failed to read genotype %s for plasmid staging: %v\n", genotypeName, err)
 		return
 	}
-
-	var metadata struct {
-		Plasmids []string `json:"plasmids"`
-	}
-	if err := json.Unmarshal(content, &metadata); err != nil {
-		fmt.Fprintf(os.Stderr, "⚠️ Failed to parse genotype %s JSON: %v\n", genotypeName, err)
+	if genotype == nil {
+		fmt.Fprintf(os.Stderr, "⚠️ Genotype %s not found for plasmid staging\n", genotypeName)
 		return
 	}
 
-	for _, name := range metadata.Plasmids {
+	for _, name := range genotype.Plasmids {
+		denied := false
+		for _, deny := range genotype.DenyPlasmids {
+			if strings.EqualFold(name, deny) {
+				denied = true
+				break
+			}
+		}
+		if denied {
+			fmt.Fprintf(os.Stderr, "⚠️ Skipping staging of denied plasmid %s\n", name)
+			continue
+		}
+
 		sourceFile, err := FindPlasmidSource(sourcePath, name)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "⚠️ Failed to locate plasmid %s: %v\n", name, err)
