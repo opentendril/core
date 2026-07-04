@@ -11,6 +11,7 @@ type genotypeDefinition struct {
 	Name         string   `json:"name"`
 	Instructions string   `json:"instructions"`
 	Plasmids     []string `json:"plasmids,omitempty"`
+	DenyPlasmids []string `json:"denyPlasmids,omitempty"`
 }
 
 // EnsureMeristemGenotype creates the built-in Meristem genotype if it is missing.
