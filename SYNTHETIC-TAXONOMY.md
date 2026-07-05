@@ -125,16 +125,16 @@ The interaction between the components looks like this in practice:
 
 ```mermaid
 graph TD
-    subgraph GoStem
+    subgraph GoStem ["GoStem"]
         API[Incoming Request] --> HT[Hormonal Triggers]
         HT -- Growth Blocked --> Abort
         HT -- Growth Allowed --> OS[Sprout Initiator]
     end
 
-    subgraph EphemeralSproutTerrarium
+    subgraph EphemeralSproutTerrarium ["Ephemeral Sprout Terrarium"]
         OS --> T[The Tendril AI]
         
-        subgraph GeneticInjection
+        subgraph GeneticInjection ["Genetic Injection"]
             G[Genotype: Core Persona] --> T
             P1[Plasmid: Skill A] -.-> T
             P2[Plasmid: Skill B] -.-> T
