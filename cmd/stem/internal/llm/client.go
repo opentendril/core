@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -81,7 +82,19 @@ func (c *Client) CallPrompt(ctx context.Context, systemPrompt string, userPrompt
 	return c.Call(ctx, messages)
 }
 
+func (c *Client) CallStreamPrompt(ctx context.Context, systemPrompt string, userPrompt string, tokenChan chan<- string) (string, error) {
+	messages := []Message{
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userPrompt},
+	}
+	return c.CallStream(ctx, messages, tokenChan)
+}
+
 func (c *Client) Call(ctx context.Context, messages []Message) (string, error) {
+	return c.CallStream(ctx, messages, nil)
+}
+
+func (c *Client) CallStream(ctx context.Context, messages []Message, tokenChan chan<- string) (string, error) {
 	if c == nil {
 		return "", fmt.Errorf("llm client is nil")
 	}
@@ -106,11 +119,18 @@ func (c *Client) Call(ctx context.Context, messages []Message) (string, error) {
 
 	var lastErr error
 	for _, baseURL := range candidates {
-		content, err := c.callAtBaseURL(ctx, baseURL, messages)
+		content, err := c.doCall(ctx, baseURL, messages, tokenChan != nil, tokenChan)
 		if err == nil {
+			if tokenChan != nil {
+				close(tokenChan)
+			}
 			return content, nil
 		}
 		lastErr = err
+	}
+
+	if tokenChan != nil {
+		close(tokenChan)
 	}
 
 	if lastErr == nil {
@@ -386,6 +406,10 @@ func localInferenceBaseURLs(baseURL string) []string {
 }
 
 func (c *Client) callAtBaseURL(ctx context.Context, baseURL string, messages []Message) (string, error) {
+	return c.doCall(ctx, baseURL, messages, false, nil)
+}
+
+func (c *Client) doCall(ctx context.Context, baseURL string, messages []Message, stream bool, tokenChan chan<- string) (string, error) {
 	var (
 		payload []byte
 		url     = strings.TrimRight(baseURL, "/") + c.spec.Endpoint
@@ -418,6 +442,7 @@ func (c *Client) callAtBaseURL(ctx context.Context, baseURL string, messages []M
 			"max_tokens":  2048,
 			"temperature": c.spec.Temperature,
 			"messages":    anthropicMessages,
+			"stream":      stream,
 		}
 		if len(systemParts) > 0 {
 			payloadBody["system"] = []map[string]any{
@@ -439,7 +464,7 @@ func (c *Client) callAtBaseURL(ctx context.Context, baseURL string, messages []M
 		payload, err = json.Marshal(map[string]any{
 			"model":       c.spec.Model,
 			"temperature": c.spec.Temperature,
-			"stream":      false,
+			"stream":      stream,
 			"messages":    messages,
 		})
 		if err != nil {
@@ -464,6 +489,66 @@ func (c *Client) callAtBaseURL(ctx context.Context, baseURL string, messages []M
 		return "", fmt.Errorf("llm request failed: %w", err)
 	}
 	defer resp.Body.Close()
+
+	if stream {
+		scanner := bufio.NewScanner(resp.Body)
+		var fullContent strings.Builder
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == "" {
+				continue
+			}
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			dataStr := strings.TrimPrefix(line, "data: ")
+			if dataStr == "[DONE]" {
+				break
+			}
+
+			if c.spec.Mode == ModeAnthropic {
+				var event struct {
+					Type  string `json:"type"`
+					Delta struct {
+						Type string `json:"type"`
+						Text string `json:"text"`
+					} `json:"delta"`
+				}
+				if err := json.Unmarshal([]byte(dataStr), &event); err == nil {
+					if event.Type == "content_block_delta" && event.Delta.Type == "text_delta" {
+						text := event.Delta.Text
+						fullContent.WriteString(text)
+						if tokenChan != nil {
+							tokenChan <- text
+						}
+					}
+				}
+			} else {
+				var chunk struct {
+					Choices []struct {
+						Delta struct {
+							Content string `json:"content"`
+						} `json:"delta"`
+					} `json:"choices"`
+				}
+				if err := json.Unmarshal([]byte(dataStr), &chunk); err == nil {
+					if len(chunk.Choices) > 0 {
+						text := chunk.Choices[0].Delta.Content
+						if text != "" {
+							fullContent.WriteString(text)
+							if tokenChan != nil {
+								tokenChan <- text
+							}
+						}
+					}
+				}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return fullContent.String(), fmt.Errorf("error reading stream: %w", err)
+		}
+		return fullContent.String(), nil
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

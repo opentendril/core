@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opentendril/core/cmd/stem/internal/eventbus"
 	"github.com/opentendril/core/cmd/stem/internal/llm"
 	"github.com/opentendril/core/cmd/stem/internal/terrarium"
 )
@@ -34,6 +35,7 @@ type DockerOrchestrator struct {
 	Genotype         string
 	Temperature      float64
 	DisableMergeBack bool
+	EventBus         *eventbus.Bus
 }
 
 func NewDockerOrchestrator() *DockerOrchestrator {
@@ -49,8 +51,8 @@ var (
 	startTerrariumSessionFn = func(ctx context.Context, providerName, imageName, mountPath string, command []string, extraEnv ...string) (toolSession, error) {
 		return startTerrariumSession(ctx, providerName, imageName, mountPath, command, extraEnv...)
 	}
-	newAgentFn = func(ctx context.Context, workspace string, genotypeRoot string, genotypeName string, client llmCaller, session toolSession) (tendrilRunner, error) {
-		return newAgent(ctx, workspace, genotypeRoot, genotypeName, client, session)
+	newAgentFn = func(ctx context.Context, workspace string, genotypeRoot string, genotypeName string, client llmCaller, session toolSession, eventBus *eventbus.Bus, stepID string) (tendrilRunner, error) {
+		return newAgent(ctx, workspace, genotypeRoot, genotypeName, client, session, eventBus, stepID)
 	}
 	stashHostWorkspaceFn       = stashHostWorkspace
 	restoreHostStashFn         = restoreHostStash
@@ -261,7 +263,7 @@ func (d *DockerOrchestrator) RunTendril(ctx context.Context, taskPrompt string) 
 	}
 	defer session.Close()
 
-	agent, err := newAgentFn(ctx, mountPath, sourcePath, d.Genotype, d.resolveLLMClient(), session)
+	agent, err := newAgentFn(ctx, mountPath, sourcePath, d.Genotype, d.resolveLLMClient(), session, d.EventBus, stepID)
 	if err != nil {
 		return "", err
 	}

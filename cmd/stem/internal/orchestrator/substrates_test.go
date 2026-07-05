@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/opentendril/core/cmd/stem/internal/eventbus"
 )
 
 func TestLoadSubstratesConfigSearchOrder(t *testing.T) {
@@ -280,9 +282,13 @@ substrates:
 		capturedRepoMap = string(content)
 		return &stubToolSession{}, nil
 	}
-	newAgentFn = func(ctx context.Context, workspace string, genotypeRoot string, genotypeName string, client llmCaller, session toolSession) (tendrilRunner, error) {
+	origNewAgentFn := newAgentFn
+	newAgentFn = func(ctx context.Context, workspace string, genotypeRoot string, genotypeName string, client llmCaller, session toolSession, eventBus *eventbus.Bus, stepID string) (tendrilRunner, error) {
 		return &stubTendrilRunner{result: agentResult{Response: "read-only result", Transcript: "transcript"}}, nil
 	}
+	defer func() {
+		newAgentFn = origNewAgentFn
+	}()
 	stashHostWorkspaceFn = func(ctx context.Context, root, runID string) (bool, error) {
 		t.Fatalf("stashHostWorkspace should not run for read-only substrates")
 		return false, nil

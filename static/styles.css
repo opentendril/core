@@ -531,3 +531,44 @@ body {
 }
 
 .close:hover { color: var(--text-primary); }
+
+/* --- Thought Stream Node Graph --- */
+.thoughts-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-left: 12px;
+    border-left: 2px solid var(--border);
+}
+
+.thought-node {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    position: relative;
+    animation: fadeIn 0.3s ease;
+}
+
+.thought-node::before {
+    content: '';
+    position: absolute;
+    left: -14px;
+    top: 15px;
+    width: 10px;
+    height: 2px;
+    background: var(--border);
+}
+
+.thought-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 4px;
+    font-weight: 700;
+}

@@ -13,6 +13,7 @@ import (
 type fakeLLM struct {
 	responses []string
 	calls     [][]llm.Message
+	response  string
 }
 
 func (f *fakeLLM) Call(ctx context.Context, messages []llm.Message) (string, error) {
@@ -21,7 +22,7 @@ func (f *fakeLLM) Call(ctx context.Context, messages []llm.Message) (string, err
 	f.calls = append(f.calls, callCopy)
 
 	if len(f.responses) == 0 {
-		return "", nil
+		return f.response, nil
 	}
 
 	response := f.responses[0]
@@ -29,9 +30,18 @@ func (f *fakeLLM) Call(ctx context.Context, messages []llm.Message) (string, err
 	return response, nil
 }
 
+func (f *fakeLLM) CallStream(ctx context.Context, messages []llm.Message, tokenChan chan<- string) (string, error) {
+	if tokenChan != nil {
+		tokenChan <- f.response
+		close(tokenChan)
+	}
+	return f.response, nil
+}
+
 type fakeSession struct {
-	tools []ToolDefinition
-	calls []ToolCall
+	tools      []ToolDefinition
+	calls      []ToolCall
+	toolResult string
 }
 
 func (f *fakeSession) ListAvailableTools(ctx context.Context) ([]ToolDefinition, error) {
@@ -50,7 +60,7 @@ func (f *fakeSession) Call(ctx context.Context, call ToolCall) (ToolResponse, er
 			},
 		}, nil
 	default:
-		return ToolResponse{Status: "success", Output: map[string]any{"tool": call.Tool}}, nil
+		return ToolResponse{Status: "success", Output: map[string]any{"tool": call.Tool, "result": f.toolResult}}, nil
 	}
 }
 
@@ -93,7 +103,7 @@ func TestAgentRunsToolLoop(t *testing.T) {
 		},
 	}
 
-	agent, err := newAgent(context.Background(), workspace, workspace, "meristem", client, session)
+	agent, err := newAgent(context.Background(), workspace, workspace, "meristem", client, session, nil, "")
 	if err != nil {
 		t.Fatalf("newAgent returned error: %v", err)
 	}
@@ -201,8 +211,8 @@ func TestAgentDenyPlasmidsFilter(t *testing.T) {
 
 	client := &fakeLLM{
 		responses: []string{
-			`{"tool":"evilTool"}`, // Should fail
-			`{"tool":"injectPlasmid","arguments":{"name":"injectPlasmidTarget"}}`, // Should fail
+			`{"tool":"evilTool"}`,
+			`{"tool":"injectPlasmid","arguments":{"name":"injectPlasmidTarget"}}`,
 			`{"final":"done"}`,
 		},
 	}
@@ -213,8 +223,7 @@ func TestAgentDenyPlasmidsFilter(t *testing.T) {
 			{Name: "injectPlasmid"},
 		},
 	}
-
-	agent, err := newAgent(context.Background(), workspace, workspace, "secure", client, session)
+	agent, err := newAgent(context.Background(), workspace, workspace, "secure", client, session, nil, "")
 	if err != nil {
 		t.Fatalf("newAgent returned error: %v", err)
 	}

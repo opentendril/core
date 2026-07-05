@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/opentendril/core/cmd/stem/internal/eventbus"
 	"github.com/opentendril/core/cmd/stem/internal/llm"
 )
 
@@ -49,6 +50,7 @@ type toolSession interface {
 
 type llmCaller interface {
 	Call(ctx context.Context, messages []llm.Message) (string, error)
+	CallStream(ctx context.Context, messages []llm.Message, tokenChan chan<- string) (string, error)
 }
 
 type Agent struct {
@@ -62,6 +64,8 @@ type Agent struct {
 	denyPlasmids    []string
 	messages        []llm.Message
 	transcript      strings.Builder
+	eventBus        *eventbus.Bus
+	stepID          string
 }
 
 type ActionResult struct {
@@ -78,8 +82,7 @@ type agentResult struct {
 	Transcript   string
 	ActionResult *ActionResult
 }
-
-func newAgent(ctx context.Context, workspace string, genotypeRoot string, genotypeName string, client llmCaller, session toolSession) (*Agent, error) {
+func newAgent(ctx context.Context, workspace string, genotypeRoot string, genotypeName string, client llmCaller, session toolSession, eventBus *eventbus.Bus, stepID string) (*Agent, error) {
 	if strings.TrimSpace(workspace) == "" {
 		workspace = "."
 	}
@@ -153,6 +156,8 @@ func newAgent(ctx context.Context, workspace string, genotypeRoot string, genoty
 		tools:           filteredTools,
 		toolIndex:       toolIndex,
 		denyPlasmids:    denyPlasmids,
+		eventBus:        eventBus,
+		stepID:          stepID,
 	}, nil
 }
 
@@ -171,9 +176,41 @@ func (a *Agent) Run(ctx context.Context, taskPrompt string) (agentResult, error)
 	a.appendTranscript("user", taskPrompt)
 
 	for iteration := 0; iteration < agentMaxIterations; iteration++ {
-		response, err := a.client.Call(ctx, a.messages)
+		var tokenChan chan string
+		var response string
+		var err error
+
+		if a.eventBus != nil {
+			tokenChan = make(chan string, 100)
+			go func() {
+				for token := range tokenChan {
+					a.eventBus.Publish(eventbus.Event{
+						Type:   eventbus.EventStreamToken,
+						Source: a.stepID,
+						Data: map[string]interface{}{
+							"token": token,
+						},
+					})
+				}
+			}()
+			response, err = a.client.CallStream(ctx, a.messages, tokenChan)
+		} else {
+			response, err = a.client.Call(ctx, a.messages)
+		}
+
 		if err != nil {
 			return agentResult{}, err
+		}
+
+		thoughtContent := extractThought(response)
+		if thoughtContent != "" && a.eventBus != nil {
+			a.eventBus.Publish(eventbus.Event{
+				Type:   eventbus.EventThoughtBranch,
+				Source: a.stepID,
+				Data: map[string]interface{}{
+					"thought": thoughtContent,
+				},
+			})
 		}
 
 		a.messages = append(a.messages, llm.Message{Role: "assistant", Content: response})
@@ -231,6 +268,18 @@ func (a *Agent) appendTranscript(role string, content string) {
 	a.transcript.WriteString(content)
 }
 
+func extractThought(response string) string {
+	start := strings.Index(response, "<thought>")
+	if start == -1 {
+		return ""
+	}
+	end := strings.Index(response, "</thought>")
+	if end == -1 {
+		return strings.TrimSpace(response[start+9:])
+	}
+	return strings.TrimSpace(response[start+9 : end])
+}
+
 func (a *Agent) executeTool(ctx context.Context, call ToolCall) (ToolResponse, string, error) {
 	if strings.TrimSpace(call.Tool) == "" {
 		return ToolResponse{}, "", fmt.Errorf("empty tool call received from model")
@@ -283,11 +332,11 @@ You are the OpenTendril host-side ReAct loop.
 You reason about tasks, choose tools, and stop when the task is complete.
 
 Rules:
+- You should think about the problem before taking action. Enclose your reasoning inside <thought> and </thought> tags. Explain alternatives you considered and why you rejected them.
 - Use only the listed tools.
-- When you need a tool, respond with exactly one JSON object and nothing else.
+- When you need a tool, respond with exactly one JSON object and nothing else (after your thought block).
 - Tool calls must use the shape: {"tool":"name","arguments":{...}}.
 - When the task is complete, respond with exactly one JSON object containing {"final":"..."} or plain final text.
-- Do not reveal private chain-of-thought.
 - Prefer concise, high-signal actions and responses.
 `))
 	builder.WriteString("\n\nWorkspace root:\n")
@@ -358,6 +407,20 @@ func parseModelResponse(content string) (ToolCall, bool, string, *ActionResult, 
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" {
 		return ToolCall{}, false, "", nil, nil
+	}
+
+	for {
+		start := strings.Index(trimmed, "<thought>")
+		end := strings.Index(trimmed, "</thought>")
+		if start != -1 {
+			if end != -1 {
+				trimmed = strings.TrimSpace(trimmed[:start] + trimmed[end+10:])
+			} else {
+				trimmed = strings.TrimSpace(trimmed[:start])
+			}
+		} else {
+			break
+		}
 	}
 
 	candidate := stripCodeFences(trimmed)

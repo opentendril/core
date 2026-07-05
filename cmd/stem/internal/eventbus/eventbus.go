@@ -18,6 +18,8 @@ const (
 	EventAPIKeyInvalid    EventType = "api-key-invalid"
 	EventSequenceFailure  EventType = "sequence-failure"
 	EventSequenceComplete EventType = "sequence-complete"
+	EventStreamToken      EventType = "stream-token"
+	EventThoughtBranch    EventType = "thought-branch"
 )
 
 type Event struct {
