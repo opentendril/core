@@ -186,20 +186,67 @@ function handleWSMessage(msg) {
 
         case 'stream.start':
             if (currentStreamBubble) {
-                currentStreamBubble.innerHTML = '';
+                // Keep the thinking indicator until we get the first token or thought
             }
             break;
 
         case 'stream.token':
             if (currentStreamBubble) {
-                currentStreamBubble.textContent += msg.content;
+                var streamMode = document.getElementById('stream-mode-select').value;
+                if (streamMode === 'stream') {
+                    var textContent = currentStreamBubble.querySelector('.text-content');
+                    if (!textContent) {
+                        textContent = document.createElement('div');
+                        textContent.className = 'text-content';
+                        var thinking = currentStreamBubble.querySelector('.thinking');
+                        if (thinking) thinking.style.display = 'none';
+                        currentStreamBubble.appendChild(textContent);
+                    }
+                    textContent.textContent += msg.content;
+                }
+            }
+            break;
+
+        case 'thought-branch':
+            if (currentStreamBubble) {
+                var streamMode = document.getElementById('stream-mode-select').value;
+                if (streamMode !== 'summary') {
+                    var thoughtsContainer = currentStreamBubble.querySelector('.thoughts-container');
+                    if (!thoughtsContainer) {
+                        thoughtsContainer = document.createElement('div');
+                        thoughtsContainer.className = 'thoughts-container';
+                        currentStreamBubble.insertBefore(thoughtsContainer, currentStreamBubble.firstChild);
+                        var thinking = currentStreamBubble.querySelector('.thinking');
+                        if (thinking) thinking.style.display = 'none';
+                    }
+                    var thoughtNode = document.createElement('div');
+                    thoughtNode.className = 'thought-node';
+                    thoughtNode.innerHTML = '<div class="thought-label">Branch/Reasoning Evaluated</div>' + escapeHtml(msg.content);
+                    thoughtsContainer.appendChild(thoughtNode);
+                    
+                    var container = document.getElementById('chat-messages');
+                    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                }
             }
             break;
 
         case 'stream.end':
             if (currentStreamBubble && msg.content) {
-                // Render final markdown-formatted response
-                currentStreamBubble.innerHTML = formatResponse(msg.content);
+                var streamMode = document.getElementById('stream-mode-select').value;
+                if (streamMode !== 'thought') {
+                    var thoughtsContainer = currentStreamBubble.querySelector('.thoughts-container');
+                    var newHTML = formatResponse(msg.content);
+                    if (thoughtsContainer) {
+                        currentStreamBubble.innerHTML = '';
+                        currentStreamBubble.appendChild(thoughtsContainer);
+                        var textContent = document.createElement('div');
+                        textContent.className = 'text-content';
+                        textContent.innerHTML = newHTML;
+                        currentStreamBubble.appendChild(textContent);
+                    } else {
+                        currentStreamBubble.innerHTML = newHTML;
+                    }
+                }
             }
             currentStreamBubble = null;
             break;

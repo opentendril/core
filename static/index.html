@@ -62,10 +62,17 @@
                 <img src="/static/favicon.png" alt="Tendril Logo" style="height: 24px; width: 24px;">
                 <h1>Tendril</h1>
             </div>
-            <select id="provider-select" class="provider-select">
-                <option value="default">Auto (Default)</option>
-                <!-- Provider options loaded dynamically by app.js -->
-            </select>
+            <div style="display:flex; gap:8px;">
+                <select id="stream-mode-select" class="provider-select" style="min-width:120px;">
+                    <option value="stream">Stream Tokens</option>
+                    <option value="thought">Thoughts Only</option>
+                    <option value="summary">Summary Only</option>
+                </select>
+                <select id="provider-select" class="provider-select">
+                    <option value="default">Auto (Default)</option>
+                    <!-- Provider options loaded dynamically by app.js -->
+                </select>
+            </div>
         </header>
 
         <div id="chat-messages" class="messages">
