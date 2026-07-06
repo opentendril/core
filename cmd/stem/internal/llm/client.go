@@ -77,7 +77,7 @@ func (c *Client) SetTemperature(temp float64) {
 
 func NewClient(spec ProviderSpec) *Client {
 	return &Client{
-		httpClient: &http.Client{Timeout: 20 * time.Second},
+		httpClient: &http.Client{Timeout: 10 * time.Minute},
 		spec:       spec,
 	}
 }
