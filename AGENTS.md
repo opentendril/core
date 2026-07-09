@@ -87,10 +87,10 @@ To eliminate case mismatch bugs across Go, Python, and JSON boundaries:
 
 * **Internal Python Norms:** Inside Python files, use standard PEP 8 `snake_case` for variables, functions, and methods.
 * **Internal Go/JS Norms:** Inside Go, JS, and TS files, use standard `camelCase` (or `PascalCase` for public Go symbols). **No `snake_case` is permitted.**
-* **External Contracts Boundary:** All externally visible identifiers crossing service boundaries must use **kebab-case** (hyphens instead of underscores):
-  * JSON request/response payload keys (Go/TS must map internal identifiers to kebab-case JSON tags).
-  * HTTP API endpoint paths.
-  * Stored database keys and domain enums.
+* **External Contracts Boundary:**
+  * JSON request/response payload keys must use **`camelCase`** (Go/TS must map internal identifiers to camelCase JSON tags, e.g. `json:"sessionId"`). This matches GUARDRAILS.md and CONTRIBUTING.md.
+  * HTTP API endpoint paths must use **kebab-case** (e.g. `/api/mcp-tools`).
+  * Stored database keys and domain enums must use **kebab-case** (e.g. the EventBus event types `sprout-emerged`, `phenotypic-selection`).
 * **Filesystem separators:** No underscores are allowed in filenames across the entire filesystem, with the single exception of Go test files (`*_test.go`) and platform build suffixes (e.g. `*_linux.go`).
 * **Frontend exception (`ui/`):** The Command Center UI tree follows standard React/TypeScript convention — `PascalCase.tsx` component files, `camelCase.ts` modules, and `PascalCase/` component-family folders. Builders must **not** rewrite these to merged-lowercase; the casing/boundary rules above apply to Go and Python. JSON keys and API paths in `ui/` still follow the external-contract rules (`camelCase` keys, `kebab-case` paths).
 
