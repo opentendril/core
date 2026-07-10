@@ -51,6 +51,12 @@ The single source of truth for execution flow and orchestrator security. It runs
     *   Receives structured JSON command payloads from the Go Stem host over persistent input/output pipes.
     *   Runs compilers, linters, and unit test suites inside the isolated container, keeping unverified code execution away from the developer's host machine.
 
+### C. Tendrils (Modular Integrations)
+*   **Role:** Specialized, modular integration plugins that reach out and attach to external enterprise systems (e.g., GCP, AWS, Datadog) without bloating the lightweight Go Stem binary.
+*   **Architectural Approaches:**
+    1.  **Downstream MCP Servers:** The Stem speaks the Model Context Protocol downstream to external Tendril tools (e.g., `opentendril-gcp-mcp`).
+    2.  **Core Capability Interfaces:** Conditionally compiled Go interfaces (`internal/core`) tailored for enterprise builds using build tags (`go build -tags enterprise`).
+
 ---
 
 ## 3. Terrariumed Execution Pipeline (Git-Safe SDLC)
