@@ -31,7 +31,7 @@ substrates:
     # The actual command the Stem will invoke on the host. 
     # This must be an OpenTendril worker script that listens 
     # to stdin/stdout (e.g., the standard Python Sprout).
-    command: ["python3", "tendrils/python/src/main.py"]
+    command: ["python3", "sprouts/python/src/main.py"]
 ```
 
 ## Creating a Delegation Sequence

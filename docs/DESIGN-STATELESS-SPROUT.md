@@ -59,7 +59,7 @@ All Sprout executors will adhere to a strict universal interface using **camelCa
 ## 2. Go Stem Host-Side ReAct Loop
 
 We will move the LLM agent loop from `tendrilloop.py` onto the host Go Stem orchestrator:
-1.  **Shared LLM Client:** Extract the `callLLM` HTTP client logic from `chronicler.go` into a reusable internal package `github.com/opentendril/core/cmd/stem/internal/llm`.
+1.  **Shared LLM Client:** Extract the `callLLM` HTTP client logic from `chronicler.go` into a reusable internal package `github.com/opentendril/core/roots/llm`.
 2.  **Agent Loop:** Implement a Go-native agent loop in `internal/orchestrator/agent.go`. The loop binds tools (like `readFile`, `writeFile`, `gitCommit`, `execCommand`), formats tool definitions for the LLM, and processes LLM responses.
 3.  **Interactive Session Containers:** Instead of sprouting a Docker container for every single tool call (which adds cold start latency), the Go Stem will sprout **one container per task session** using interactive pipes (`docker run -i --rm`). It will keep the container alive, sending JSON lines on `stdin` and reading JSON lines from `stdout` sequentially until the task is done.
 4.  **Dynamic Tool Discovery:** At startup, the Go Stem will write a `listAvailableTools` command to the Sprout container. The container will return a list of JSON-defined tool schemas it supports. This allows the host to dynamically bind custom tools depending on the language/framework of the Sprout container.
@@ -79,7 +79,7 @@ In botany, **grafting** is the act of joining tissues from two different plants 
 
 ### Component: Go Stem Orchestrator
 
-#### [NEW] [llm/client.go](file:///home/dr3w/GitHub/opentendril/core/cmd/stem/internal/llm/client.go)
+#### [NEW] [llm/client.go](file:///home/dr3w/GitHub/opentendril/core/roots/llm/client.go)
 *   Extract the provider resolution, specification parsing, and HTTP POST chat completions calling code from `chronicler.go`.
 
 #### [NEW] [orchestrator/agent.go](file:///home/dr3w/GitHub/opentendril/core/cmd/stem/internal/orchestrator/agent.go)
@@ -118,7 +118,7 @@ In botany, **grafting** is the act of joining tissues from two different plants 
 #### [NEW] [tendrils/typescript/src/main.ts](file:///home/dr3w/GitHub/opentendril/core/tendrils/typescript/src/main.ts)
 *   Implement TypeScript tool executor reading stdin JSON lines and executing tools (`readFile`, `writeFile`, `execCommand`, `listAvailableTools`).
 
-#### [MODIFY] [tendrils/python/Dockerfile](file:///home/dr3w/GitHub/opentendril/core/tendrils/python/Dockerfile)
+#### [MODIFY] [sprouts/python/Dockerfile](file:///home/dr3w/GitHub/opentendril/core/sprouts/python/Dockerfile)
 *   Strip out LangChain and LLM-related libraries.
 *   Convert python worker into a dumb executor that only handles Python-specific tooling (`runPytest`, `runPip`) and implements `listAvailableTools`.
 
