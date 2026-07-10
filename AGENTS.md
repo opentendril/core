@@ -4,7 +4,19 @@ This document defines the "Operating Constitution" for all AI agents—both inte
 
 ---
 
-## 1. Builder Authority & PR Discipline
+## 1. The Supreme Directive: Biological Taxonomy Enforcement
+
+OpenTendril is built on a strict synthetic biological architecture. Any external builder agent (the Mycorrhizae/LLM) that interacts with, self-evolves, or generates code/documentation for OpenTendril **MUST NOT** corrupt the framework with standard industry IT jargon.
+
+*   **No "Agents" or "Workflows"**: You must use **Tendrils**, **Sprouts**, and **Sequences**.
+*   **No "Sandboxes" or "Tools"**: You must use **Terrariums** and **Plasmids**.
+*   **No "Brains"**: The Stem is a vascular routing system, not a brain. 
+
+**Self-Evolution Rule**: If the AI attempts to self-improve, refactor, or generate new architecture, it is absolutely forbidden from reverting to disorganized industry standards. All new concepts must be mapped to their biological equivalent using `GLOSSARY.md` and `SYNTHETIC-TAXONOMY.md` as the ultimate source of truth.
+
+---
+
+## 2. Builder Authority & PR Discipline
 
 Any external builder agent or process must operate under strict boundary constraints:
 * **No Merge Authority:** Builders do not own merge authority. A builder must never merge a PR or enable auto-merge.
@@ -15,7 +27,7 @@ Any external builder agent or process must operate under strict boundary constra
 
 ---
 
-## 2. The 3-Gate Execution Lifecycle
+## 3. The 3-Gate Execution Lifecycle
 
 To prevent "agent runaways" and maintain absolute system security, all non-trivial features or refactors must route through a structured lifecycle. The strictness of this process is governed by the active `TENDRIL_SDLC_PROFILE` configuration (Solo, Collaborative, or Enterprise, as defined in `PLANNING.md`).
 
@@ -52,7 +64,7 @@ In **Enterprise Mode** (`enterprise`), the full 3-gate lifecycle is strictly enf
 
 ---
 
-## 3. Git Preflight Checklist (Conflict Avoidance)
+## 4. Git Preflight Checklist (Conflict Avoidance)
 
 Before starting work on ANY task, the builder MUST run this sequence to guarantee a clean workspace:
 
@@ -69,7 +81,7 @@ Only after the preflight check returns exactly `0 0` on a clean `main` branch ma
 
 ---
 
-## 4. Casing & Boundary Mapping Rules
+## 5. Casing & Boundary Mapping Rules
 
 To eliminate case mismatch bugs across Go, Python, and JSON boundaries:
 
@@ -84,7 +96,7 @@ To eliminate case mismatch bugs across Go, Python, and JSON boundaries:
 
 ---
 
-## 5. Interface Parity — Adapters Translate Only
+## 6. Interface Parity — Adapters Translate Only
 
 The CLI, MCP, and OpenAPI/REST surfaces are **projections of one core capability registry**, not independent implementations. To keep them from silently diverging:
 
@@ -98,7 +110,7 @@ The CLI, MCP, and OpenAPI/REST surfaces are **projections of one core capability
 
 ---
 
-## 6. Internal Agent Taxonomy
+## 7. Internal Agent Taxonomy
 
 OpenTendril runs specific background processes restricted to distinct scopes:
 
