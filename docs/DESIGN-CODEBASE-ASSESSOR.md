@@ -35,7 +35,7 @@ The generated map is formatted as a compact hierarchical list:
 - class TypeScriptExecutor
   - method executeTask(task: Task): Promise<Result>
 
-## [Python] tendrils/python/src/main.py
+## [Python] sprouts/python/src/main.py
 - def runPytest(test_path: str) -> dict
 ```
 

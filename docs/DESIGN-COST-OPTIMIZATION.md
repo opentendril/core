@@ -71,9 +71,9 @@ For Anthropic provider queries, Go Stem formats system and user prompts to lever
 
 ## 3. Proposed Changes
 
-### Component: LLM Client (`cmd/stem/internal/llm`)
+### Component: LLM Client (`roots/llm`)
 
-#### [MODIFY] [client.go](file:///home/dr3w/GitHub/opentendril/core/cmd/stem/internal/llm/client.go)
+#### [MODIFY] [client.go](file:///home/dr3w/GitHub/opentendril/core/roots/llm/client.go)
 *   Add `ModelTier` constants (`TierPremium`, `TierStandard`, `TierCheapest`).
 *   Implement `ResolveTierProviderSpec(tier ModelTier) ProviderSpec` checking env keys in the format `<PROVIDER>_<TIER>_MODEL` (e.g. `ANTHROPIC_STANDARD_MODEL`) before falling back to 2026 defaults.
 *   Update `callAtBaseURL` to format payloads with prompt caching blocks for `ModeAnthropic` if the header is active.

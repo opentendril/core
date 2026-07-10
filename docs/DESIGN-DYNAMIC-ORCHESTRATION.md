@@ -27,7 +27,7 @@ To reduce execution latency and costs, we split the LLM client into two provider
 *   `COORDINATOR_LOCAL_INFERENCE_URL`: Local endpoint for the coordinator model (falls back to `LOCAL_INFERENCE_URL`).
 
 ### Code Changes
-In [client.go](file:///home/dr3w/GitHub/opentendril/core/cmd/stem/internal/llm/client.go), we expose:
+In [client.go](file:///home/dr3w/GitHub/opentendril/core/roots/llm/client.go), we expose:
 ```go
 func NewCoordinatorClientFromEnv() *Client {
 	return NewClient(ResolveCoordinatorProviderSpec())

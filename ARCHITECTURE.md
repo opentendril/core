@@ -39,11 +39,15 @@ The system is compiled into a single, unified Go binary (`tendril`) that serves 
 ### A. The Go Stem Orchestrator (`cmd/stem`)
 The single source of truth for execution flow and orchestrator security. It runs on the host machine and is responsible for:
 1.  **Protocol Gateways:** Exposing MCP server handlers (stdio/SSE), WebSocket loops for interactive CLI chat, and REST config endpoints.
-2.  **LLM client management:** Directly resolving LLM API requests and prompt completions to Anthropic, OpenAI, or local providers (e.g. Ollama/vLLM) without running any external proxy services.
+2.  **LLM client management:** Drawing inference through the Roots provider layer (below) — no external proxy services are ever run.
 3.  **Genotype & Plasmid resolution:** Auto-indexing system prompts (`index.yaml`) and staging markdown context templates.
 4.  **Terrarium Isolation:** Dynamically growing stateless language sprouts and executing task scripts securely.
 
-### B. Ephemeral Sprout Terrariumes
+### B. The Roots (`roots/`) — LLM Provider Layer
+*   **Role:** The provider-connectivity pillar. Just as physical roots draw nutrients from the Mycorrhizal Network (the LLM), the Roots package (`roots/llm`) owns every direct LLM concern: provider clients (Anthropic, OpenAI, Grok, local Ollama/vLLM), live model discovery, capability registries, and tier/coordinator routing.
+*   **Boundary:** The Stem *consumes* the Roots; it contains no provider code of its own (the layer was ported out of `cmd/stem/internal` in #199). Nothing outside the Roots speaks a provider API directly.
+
+### C. Ephemeral Sprout Terrariumes
 *   **Role:** Safe, isolated containers running target programming languages (e.g. `opentendril-go`, `opentendril-typescript`). See [Terrarium Terrariuming](file:///home/dr3w/GitHub/opentendril/core/docs/terrarium.md) for details on supported isolation tiers (Docker, gVisor, Firecracker).
 *   **Responsibilities:**
     *   Boots ephemerally when a Sprout run starts.
@@ -51,11 +55,11 @@ The single source of truth for execution flow and orchestrator security. It runs
     *   Receives structured JSON command payloads from the Go Stem host over persistent input/output pipes.
     *   Runs compilers, linters, and unit test suites inside the isolated container, keeping unverified code execution away from the developer's host machine.
 
-### C. Branches (Capability Groups)
+### D. Branches (Capability Groups)
 *   **Role:** Logical security zones or capability groupings initialized by the Stem at boot time (e.g., Core Branch, Enterprise Branch).
 *   **Responsibilities:** They dictate the blast radius and authorization scope. A Sprout that grows on the Core Branch physically cannot access integrations (Tendrils) located on the Enterprise Branch.
 
-### D. Tendrils (External Integrations)
+### E. Tendrils (External Integrations)
 *   **Role:** Persistent, modular integration plugins that reach out and attach to external enterprise systems (e.g., GCP, AWS, Datadog) without bloating the lightweight Go Stem binary. Tendrils are **grafted** onto specific Branches.
 *   **Architectural Approaches:**
     1.  **Downstream MCP Servers:** The Stem speaks the Model Context Protocol downstream to external Tendril tools (e.g., `opentendril-gcp-mcp`).

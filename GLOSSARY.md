@@ -23,6 +23,7 @@ This glossary provides a quick bidirectional reference between OpenTendril termi
 | **Plasmid** | RAG Context / Tool Definition | Modular, reusable blocks of context or API tool definitions injected into a Genotype on the fly. |
 | **Resin** | Local Log Trace / Debug Log | The internal byproduct of the system's metabolism that flows through the system capturing errors and state. |
 | **Rhizome** | Vector DB / Indexed Knowledge Graph | The local SQLite/Vector index of the Substrate that the AI queries for context. |
+| **Roots** | LLM Provider / Client Layer | The provider-connectivity pillar (`roots/`) through which the Stem draws inference from the Mycorrhizal Network — provider clients, model discovery, and tier routing. |
 | **Sequence** | Agentic Pipeline / CI Workflow | A predefined YAML list of steps that orchestrates multiple Tendrils in a specific order. |
 | **Sprout** | Ephemeral Worker | An ephemeral, strictly isolated worker container that is dynamically sprouted on a Branch to perform a task. |
 | **Stem** | Core Orchestrator | The lean, deterministic Go orchestrator. It manages routing and lifecycle without any business logic. |
@@ -47,6 +48,7 @@ This glossary provides a quick bidirectional reference between OpenTendril termi
 | **Docker Container** | **Sprout** | An ephemeral, strictly isolated worker container. |
 | **Failure Isolation / Fault Tolerance** | **Abscission** | Dropping a crashed Sprout or failed Tendril to protect the core. |
 | **Large Language Model (LLM)** | **Mycorrhizal Network** | The remote brain doing the reasoning. |
+| **LLM Provider Client / SDK Layer** | **Roots** | The connectivity layer (`roots/`) resolving providers, models, and routing for the Stem. |
 | **Local Logs / Debug Traces** | **Resin** | Real-time debugging byproducts flowing through the system. |
 | **Memory / Self-Correction** | **Epigenetics** | Learnings passed down to future agent runs. |
 | **Microservice Plugin** | **Symbiotic Nodule** | An external microservice (Tendril) providing specialized capabilities. |
