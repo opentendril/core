@@ -24,11 +24,6 @@ type WebhookTransporter struct {
 	client   *http.Client
 }
 
-// PrometheusTransporter is a stub for future Prometheus metrics export.
-type PrometheusTransporter struct {
-	port int
-}
-
 // KafkaTransporter is a stub for future Kafka pub-sub export.
 type KafkaTransporter struct {
 	brokers []string
@@ -54,7 +49,7 @@ func NewTransporter(cfg TransporterConfig) (Transporter, error) {
 		}
 		return NewRemoteWebSocketTransporter(cfg.Endpoint, cfg.APIKey), nil
 	case "prometheus":
-		return NewPrometheusTransporter(cfg.Port), nil
+		return NewPrometheusTransporter(cfg)
 	case "kafka":
 		return NewKafkaTransporter(cfg.Brokers, cfg.APIKey), nil
 	default:
@@ -71,11 +66,6 @@ func NewWebhookTransporter(endpoint, apiKey string) *WebhookTransporter {
 			Timeout: 10 * time.Second,
 		},
 	}
-}
-
-// NewPrometheusTransporter creates a stub Prometheus transporter.
-func NewPrometheusTransporter(port int) *PrometheusTransporter {
-	return &PrometheusTransporter{port: port}
 }
 
 // NewKafkaTransporter creates a stub Kafka transporter.
@@ -135,10 +125,6 @@ func (t *WebhookTransporter) Emit(event eventbus.Event) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("webhook returned status %d", resp.StatusCode)
 	}
-	return nil
-}
-
-func (t *PrometheusTransporter) Emit(event eventbus.Event) error {
 	return nil
 }
 
