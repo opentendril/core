@@ -116,10 +116,15 @@ tendril chat
 
 OpenTendril acts as a headless backend. You can connect it to your favorite developer tools using either the **Model Context Protocol (MCP)** or its **OpenAI-Compatible API**.
 
-### 1. Claude Desktop & Cursor (via MCP)
+### 1. Claude Code, Claude Desktop & Cursor (via MCP)
 MCP allows clients to natively access Tendril's secure terrariumed tools.
 
-Edit your MCP configuration file:
+**Claude Code (CLI) — one command:**
+```bash
+claude mcp add opentendril -- tendril mcp
+```
+
+**Claude Desktop / Cursor** — edit your MCP configuration file:
 - **Claude Desktop (Mac):** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Claude Desktop (Linux):** `~/.config/Claude/claude_desktop_config.json`
 
@@ -134,6 +139,12 @@ Add the following configuration:
   }
 }
 ```
+
+Once connected, the client can drive the Stem's governed capabilities directly.
+A JSON-RPC `tools/list` on `tendril mcp` advertises the full set — session
+lifecycle (`session.create|list|get|update|delete|history`), `sproutTendril`,
+`runSequence`, genome/plasmid/graft tools — the same registry projected onto the
+CLI and REST surfaces (interface parity is enforced in CI).
 
 ### 2. Aider & CodexCLI (via OpenAI API)
 Command-line coding assistants can use Tendril as their backend LLM provider, benefiting from its local inference and routing.
