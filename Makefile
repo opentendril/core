@@ -1,7 +1,9 @@
-.PHONY: sprout sprout-all build up down health test clean check-all
+# Declared phony so the committed root `stem`/`tendril` binaries don't make
+# these targets look "up to date" and get skipped (which broke `make install`).
+.PHONY: stem install stem-all build up down health test-stem test-all clean check-all help
 
 # --- Stem Binaries ---
-STEM_VERSION := 0.1.0
+STEM_VERSION := 0.2.0
 STEM_DIR := cmd/stem
 DIST_DIR := cmd/stem/dist
 
