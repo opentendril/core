@@ -193,14 +193,23 @@ func TestResolveAppCredential(t *testing.T) {
 	}
 }
 
-func TestHTTPAuthHeaderArgs(t *testing.T) {
-	args := httpAuthHeaderArgs("ghs_tok")
-	if len(args) != 2 || args[0] != "-c" {
-		t.Fatalf("want [-c, http.extraHeader=...], got %v", args)
+func TestGitTokenCredentialEnv(t *testing.T) {
+	env := gitTokenCredentialEnv("ghs_tok")
+	foundToken := false
+	for _, e := range env {
+		if e == gitTokenCredentialEnvVar+"=ghs_tok" {
+			foundToken = true
+			continue
+		}
+		if strings.Contains(e, "ghs_tok") {
+			t.Fatalf("token leaked outside %s: %q", gitTokenCredentialEnvVar, e)
+		}
 	}
-	want := "http.extraHeader=Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:ghs_tok"))
-	if args[1] != want {
-		t.Fatalf("header arg = %q, want %q", args[1], want)
+	if !foundToken {
+		t.Fatalf("no %s=ghs_tok in %v", gitTokenCredentialEnvVar, env)
+	}
+	if !strings.Contains(strings.Join(env, "\n"), "GIT_CONFIG_KEY_1=credential.helper") {
+		t.Fatalf("credential.helper not configured via GIT_CONFIG_*: %v", env)
 	}
 }
 
@@ -252,21 +261,36 @@ func TestGithubAppLive(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&out)
 	fmt.Printf("live check OK: token authenticated, installation can see %d repo(s)\n", out.TotalCount)
 
-	// End-to-end: clone via the header-based auth and prove the token never
-	// lands in the persisted .git/config.
 	cred := ResolvedCredential{Method: CredentialApp, App: AppCredential{AppID: appID, PrivateKeyPath: keyPath}}
-	authArgs, _, err := materializeGitAuth(context.Background(), cred, repo)
+	authEnv, err := materializeGitAuth(context.Background(), cred, repo)
 	if err != nil {
 		t.Fatalf("materializeGitAuth failed: %v", err)
 	}
+
+	// The credential helper serves the real token to git via stdin.
+	fill := exec.Command("git", "credential", "fill")
+	fill.Env = append(os.Environ(), authEnv...)
+	fill.Stdin = strings.NewReader("protocol=https\nhost=github.com\n\n")
+	fillOut, err := fill.Output()
+	if err != nil {
+		t.Fatalf("git credential fill failed: %v", err)
+	}
+	if !strings.Contains(string(fillOut), "username=x-access-token") || !strings.Contains(string(fillOut), "password="+token) {
+		t.Fatalf("credential helper did not serve the expected credentials")
+	}
+	fmt.Println("live check OK: credential helper serves x-access-token + the installation token")
+
+	// End-to-end: clone with auth in the environment only, and prove the token
+	// never lands in argv or the persisted .git/config.
 	dest := filepath.Join(t.TempDir(), "clone")
-	gitArgs := append(append([]string{}, authArgs...), "clone", "--depth", "1", "--", repo, dest)
-	if out, err := exec.Command("git", gitArgs...).CombinedOutput(); err != nil {
-		t.Fatalf("header-auth clone failed: %v (%s)", err, out)
+	clone := exec.Command("git", "clone", "--depth", "1", "--", repo, dest)
+	clone.Env = append(os.Environ(), authEnv...)
+	if out, err := clone.CombinedOutput(); err != nil {
+		t.Fatalf("env-auth clone failed: %v (%s)", err, out)
 	}
 	cfg, _ := os.ReadFile(filepath.Join(dest, ".git", "config"))
 	if strings.Contains(string(cfg), token) || strings.Contains(string(cfg), "x-access-token") {
 		t.Fatalf(".git/config leaked the token — hardening regressed")
 	}
-	fmt.Println("live check OK: header-auth clone succeeded and .git/config is token-free")
+	fmt.Println("live check OK: env-auth clone succeeded and .git/config is token-free")
 }

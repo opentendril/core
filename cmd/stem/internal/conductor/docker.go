@@ -1312,9 +1312,10 @@ func cloneNamedForeignSubstrate(name, url, branch string, cred ResolvedCredentia
 	}
 
 	// Resolve git auth (mints a fresh GitHub App token when needed). The token
-	// travels as a command-scoped Authorization header — never in the clone URL
-	// or the persisted .git/config, so it can't leak into the mounted terrarium.
-	authArgs, gitEnv, err := materializeGitAuth(context.Background(), cred, url)
+	// travels only in the process environment via an inline credential helper —
+	// never in the clone URL, the command line, or the persisted .git/config, so
+	// it can't leak into the mounted terrarium.
+	gitEnv, err := materializeGitAuth(context.Background(), cred, url)
 	if err != nil {
 		return "", false, err
 	}
@@ -1329,7 +1330,7 @@ func cloneNamedForeignSubstrate(name, url, branch string, cred ResolvedCredentia
 	// Reuse a persistent checkout that already exists: refresh it to a clean,
 	// current tree instead of failing to clone into a non-empty directory.
 	if checkout.persistent && isGitRepo(dest) {
-		if err := refreshExistingCheckout(dest, branch, authArgs, gitEnv); err != nil {
+		if err := refreshExistingCheckout(dest, branch, gitEnv); err != nil {
 			return "", false, err
 		}
 		return dest, true, nil
@@ -1340,8 +1341,7 @@ func cloneNamedForeignSubstrate(name, url, branch string, cred ResolvedCredentia
 		}
 	}
 
-	args := append([]string{}, authArgs...)
-	args = append(args, "-c", "protocol.ext.allow=never", "clone")
+	args := []string{"-c", "protocol.ext.allow=never", "clone"}
 	if branch != "" {
 		args = append(args, "--branch", branch)
 	}
@@ -1383,14 +1383,13 @@ func pushTerrariumCommit(ctx context.Context, mountPath, branch string, cred Res
 
 	// Re-resolve auth for the push against the (tokenless) origin URL. For a
 	// GitHub App this mints a fresh installation token; the credential travels
-	// as a command-scoped header/env, never persisted to .git/config.
+	// only in the process environment, never persisted to .git/config.
 	originURL, _ := runGitCommand(ctx, mountPath, "remote", "get-url", "origin")
-	authArgs, pushEnv, authErr := materializeGitAuth(ctx, cred, strings.TrimSpace(originURL))
+	pushEnv, authErr := materializeGitAuth(ctx, cred, strings.TrimSpace(originURL))
 	if authErr != nil {
 		return authErr
 	}
-	pushArgs := append(append([]string{}, authArgs...), "push", "origin", "HEAD:"+targetBranch)
-	if _, err := runGitCommandWithEnv(ctx, mountPath, pushEnv, pushArgs...); err != nil {
+	if _, err := runGitCommandWithEnv(ctx, mountPath, pushEnv, "push", "origin", "HEAD:"+targetBranch); err != nil {
 		return err
 	}
 

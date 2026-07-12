@@ -2,33 +2,35 @@ package conductor
 
 import (
 	"context"
-	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// decodeAuthToken extracts the token from git http.extraHeader config args.
-func decodeAuthToken(t *testing.T, configArgs []string) string {
+// authTokenFromEnv returns the token the credential helper will serve (from the
+// OT_GIT_TOKEN entry) and asserts the token appears nowhere else in the env —
+// notably not in any GIT_CONFIG_* value, which would put it in reach of argv.
+func authTokenFromEnv(t *testing.T, env []string) string {
 	t.Helper()
-	if len(configArgs) != 2 {
-		t.Fatalf("want [-c, http.extraHeader=...], got %v", configArgs)
+	token := ""
+	for _, e := range env {
+		if v, ok := strings.CutPrefix(e, gitTokenCredentialEnvVar+"="); ok {
+			token = v
+		}
 	}
-	const marker = "Authorization: Basic "
-	idx := strings.Index(configArgs[1], marker)
-	if idx < 0 {
-		t.Fatalf("no basic auth header in %q", configArgs[1])
+	if token == "" {
+		t.Fatalf("no %s in env %v", gitTokenCredentialEnvVar, env)
 	}
-	raw, err := base64.StdEncoding.DecodeString(configArgs[1][idx+len(marker):])
-	if err != nil {
-		t.Fatalf("decode header: %v", err)
+	for _, e := range env {
+		if strings.HasPrefix(e, gitTokenCredentialEnvVar+"=") {
+			continue
+		}
+		if strings.Contains(e, token) {
+			t.Fatalf("token leaked outside %s: %q", gitTokenCredentialEnvVar, e)
+		}
 	}
-	parts := strings.SplitN(string(raw), ":", 2)
-	if len(parts) != 2 || parts[0] != "x-access-token" {
-		t.Fatalf("unexpected basic auth payload %q", string(raw))
-	}
-	return parts[1]
+	return token
 }
 
 func TestResolveSubstrateCredential(t *testing.T) {
@@ -186,63 +188,57 @@ func TestExpandHome(t *testing.T) {
 func TestMaterializeGitAuth(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("pat -> Authorization header, no env, no url token", func(t *testing.T) {
-		args, env, err := materializeGitAuth(ctx,
+	t.Run("pat -> credential-helper env, token only in OT_GIT_TOKEN", func(t *testing.T) {
+		env, err := materializeGitAuth(ctx,
 			ResolvedCredential{Method: CredentialPAT, TokenEnv: "MY_PAT", TokenValue: "tok123"}, "https://github.com/o/r.git")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if env != nil {
-			t.Fatalf("token auth must not use process env, got %v", env)
-		}
-		if got := decodeAuthToken(t, args); got != "tok123" {
-			t.Fatalf("header token = %q, want tok123", got)
+		if got := authTokenFromEnv(t, env); got != "tok123" {
+			t.Fatalf("credential token = %q, want tok123", got)
 		}
 	})
 
-	t.Run("ssh -> GIT_SSH_COMMAND, no header, no token", func(t *testing.T) {
-		args, env, err := materializeGitAuth(ctx,
+	t.Run("ssh -> GIT_SSH_COMMAND, no token", func(t *testing.T) {
+		env, err := materializeGitAuth(ctx,
 			ResolvedCredential{Method: CredentialSSH, SSHKeyPath: "/keys/id_ot"}, "git@github.com:o/r.git")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if args != nil {
-			t.Fatalf("ssh must not set http auth args, got %v", args)
-		}
 		if len(env) != 1 || !strings.Contains(env[0], "GIT_SSH_COMMAND=") || !strings.Contains(env[0], "/keys/id_ot") {
-			t.Fatalf("env = %v, want GIT_SSH_COMMAND with key", env)
+			t.Fatalf("env = %v, want only GIT_SSH_COMMAND with key", env)
 		}
 		for _, e := range env {
-			if strings.Contains(strings.ToUpper(e), "TOKEN") {
-				t.Fatalf("ssh leaked a token-ish env: %q", e)
+			if strings.Contains(strings.ToUpper(e), "TOKEN") || strings.HasPrefix(e, "GIT_CONFIG") {
+				t.Fatalf("ssh leaked token/credential config: %q", e)
 			}
 		}
 	})
 
 	t.Run("none -> anonymous", func(t *testing.T) {
-		args, env, err := materializeGitAuth(ctx, ResolvedCredential{Method: CredentialNone}, "https://example.com/pub.git")
-		if err != nil || args != nil || env != nil {
-			t.Fatalf("none should be anonymous, got args=%v env=%v err=%v", args, env, err)
+		env, err := materializeGitAuth(ctx, ResolvedCredential{Method: CredentialNone}, "https://example.com/pub.git")
+		if err != nil || env != nil {
+			t.Fatalf("none should be anonymous, got env=%v err=%v", env, err)
 		}
 	})
 
 	t.Run("unspecified github uses ambient PAT", func(t *testing.T) {
 		t.Setenv("GITHUB_TOKEN", "ambient")
 		t.Setenv("GITHUB_PERSONAL_ACCESS_TOKEN", "")
-		args, env, err := materializeGitAuth(ctx, ResolvedCredential{}, "https://github.com/o/r.git")
-		if err != nil || env != nil {
-			t.Fatalf("unexpected env=%v err=%v", env, err)
+		env, err := materializeGitAuth(ctx, ResolvedCredential{}, "https://github.com/o/r.git")
+		if err != nil {
+			t.Fatal(err)
 		}
-		if got := decodeAuthToken(t, args); got != "ambient" {
-			t.Fatalf("header token = %q, want ambient", got)
+		if got := authTokenFromEnv(t, env); got != "ambient" {
+			t.Fatalf("credential token = %q, want ambient", got)
 		}
 	})
 
 	t.Run("unspecified non-github stays anonymous", func(t *testing.T) {
 		t.Setenv("GITHUB_TOKEN", "ambient")
-		args, env, err := materializeGitAuth(ctx, ResolvedCredential{}, "https://gitlab.com/o/r.git")
-		if err != nil || args != nil || env != nil {
-			t.Fatalf("non-github unspecified should stay anonymous, got args=%v env=%v", args, env)
+		env, err := materializeGitAuth(ctx, ResolvedCredential{}, "https://gitlab.com/o/r.git")
+		if err != nil || env != nil {
+			t.Fatalf("non-github unspecified should stay anonymous, got env=%v", env)
 		}
 	})
 }

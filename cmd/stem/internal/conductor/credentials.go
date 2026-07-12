@@ -2,7 +2,6 @@ package conductor
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -149,37 +148,52 @@ func gitSSHCommand(keyPath string) string {
 	return fmt.Sprintf("ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new", keyPath)
 }
 
-// httpAuthHeaderArgs returns git `-c` args that authenticate an HTTPS request via
-// an Authorization header. The header is command-scoped — it is NOT written to
-// the repo's .git/config, so the token never reaches the mounted terrarium.
-// x-access-token as the username works for both GitHub App and PAT tokens.
-func httpAuthHeaderArgs(token string) []string {
-	basic := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
-	return []string{"-c", "http.extraHeader=Authorization: Basic " + basic}
+// gitTokenCredentialEnvVar is the environment variable the inline git credential
+// helper reads the token from. It lives only in the process environment.
+const gitTokenCredentialEnvVar = "OT_GIT_TOKEN"
+
+// gitTokenCredentialEnv returns process env that authenticates git over HTTPS via
+// an inline credential helper reading the token from OT_GIT_TOKEN. The secret
+// lives ONLY in the process environment (owner-readable /proc/<pid>/environ) —
+// never on the command line (world-readable /proc/<pid>/cmdline) or in
+// .git/config. x-access-token as the username works for App and PAT tokens.
+func gitTokenCredentialEnv(token string) []string {
+	// The helper references $OT_GIT_TOKEN by name, so the token never appears in
+	// the helper text either. VALUE_0="" resets any inherited helper so only ours
+	// is consulted; VALUE_1 installs it. Config travels via GIT_CONFIG_* (env),
+	// not `-c` args, keeping it out of argv entirely.
+	const helper = `!f() { test "$1" = get && printf 'username=x-access-token\npassword=%s\n' "$OT_GIT_TOKEN"; }; f`
+	return []string{
+		gitTokenCredentialEnvVar + "=" + token,
+		"GIT_CONFIG_COUNT=2",
+		"GIT_CONFIG_KEY_0=credential.helper",
+		"GIT_CONFIG_VALUE_0=",
+		"GIT_CONFIG_KEY_1=credential.helper",
+		"GIT_CONFIG_VALUE_1=" + helper,
+	}
 }
 
-// materializeGitAuth resolves ready-to-use git authentication for a remote,
-// returning command-scoped `-c` config args (HTTPS Authorization header) and/or
-// process env (GIT_SSH_COMMAND). Design RFC #222.
+// materializeGitAuth resolves ready-to-use git authentication for a remote as
+// process environment. Design RFC #222.
 //
-// Invariants: no secret is ever embedded in the clone URL or persisted to
-// .git/config; ssh/none never carry a PAT; the GitHub App token is minted fresh
-// here (cached) so both clone and push get a currently-valid token.
-func materializeGitAuth(ctx context.Context, cred ResolvedCredential, repoURL string) (configArgs, env []string, err error) {
+// Invariants: no secret ever appears in the clone URL, the command line, or the
+// persisted .git/config; ssh/none never carry a PAT; the GitHub App token is
+// minted fresh here (cached) so both clone and push get a currently-valid token.
+func materializeGitAuth(ctx context.Context, cred ResolvedCredential, repoURL string) (env []string, err error) {
 	switch cred.Method {
 	case CredentialSSH:
 		if cred.SSHKeyPath != "" {
-			return nil, []string{"GIT_SSH_COMMAND=" + gitSSHCommand(cred.SSHKeyPath)}, nil
+			return []string{"GIT_SSH_COMMAND=" + gitSSHCommand(cred.SSHKeyPath)}, nil
 		}
-		return nil, nil, nil
+		return nil, nil
 	case CredentialNone:
-		return nil, nil, nil
+		return nil, nil
 	case CredentialApp:
 		token, tokenErr := githubAppInstallationToken(ctx, cred.App, repoURL)
 		if tokenErr != nil {
-			return nil, nil, fmt.Errorf("github app auth: %w", tokenErr)
+			return nil, fmt.Errorf("github app auth: %w", tokenErr)
 		}
-		return httpAuthHeaderArgs(token), nil, nil
+		return gitTokenCredentialEnv(token), nil
 	default: // pat or unspecified (legacy)
 		token := cred.TokenValue
 		if token == "" && cred.Method == CredentialUnspecified && strings.Contains(repoURL, "github.com") {
@@ -188,9 +202,9 @@ func materializeGitAuth(ctx context.Context, cred ResolvedCredential, repoURL st
 			}
 		}
 		if token == "" {
-			return nil, nil, nil
+			return nil, nil
 		}
-		return httpAuthHeaderArgs(token), nil, nil
+		return gitTokenCredentialEnv(token), nil
 	}
 }
 
