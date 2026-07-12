@@ -26,8 +26,8 @@ func TestSigningGitConfigArgs(t *testing.T) {
 	t.Run("disabled cases return nil", func(t *testing.T) {
 		for _, s := range []ResolvedSigning{
 			{},
-			{Method: "ssh"},          // no key
-			{Key: "/k"},              // no method
+			{Method: "ssh"},             // no key
+			{Key: "/k"},                 // no method
 			{Method: "smoke", Key: "k"}, // unknown method
 		} {
 			if got := signingGitConfigArgs(s); got != nil {
