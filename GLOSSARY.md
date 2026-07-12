@@ -8,8 +8,7 @@
 
 OpenTendril uses biological and botanical metaphors — all **real botany, nothing
 invented** — rather than standard IT terminology, to emphasise the adaptable,
-organic nature of LLM orchestration. Every term has **one job**; overloads are
-called out in [§ Corrected & Deprecated](#-corrected--deprecated-usages).
+organic nature of LLM orchestration. Every term has **one job**.
 
 ---
 
@@ -118,21 +117,6 @@ lifespan. (This table is the basis for the Stem-injectable canonical block.)
 | **fruit** | deliver a PR / artifact | output / deliver |
 | **nodulate** / *form symbiosis* | connect a Symbiotic Nodule | attach a plugin |
 | **graft** | **reserved:** fuse two *like* tissues (Stem↔Stem mesh, or two Genotypes) | — |
-
----
-
-## ⚠️ Corrected & Deprecated Usages
-
-| Deprecated usage | Use instead | Why |
-|---|---|---|
-| "Tendril" for the ephemeral worker | **Sprout** | Tendril is now the concept/brand only; a worker is a Sprout. |
-| "Tendril" for a persistent integration | **Substrate** (repo) or **Symbiotic Nodule** (service) | Two distinct real organs, not one overloaded word. |
-| "graft" for attaching a Nodule | **nodulate** / *form symbiosis* | Grafting fuses two *plants*; a nodule is a symbiosis. |
-| "graft" for merging changes home | **Phloem transport** / **merge** | Changes flow down the Phloem to the Substrate. |
-| "run/execute" a task (internal) | **grow** | Botanical verb for a Sprout doing its work. |
-| "Host System" | **Terroir** | The machine/OS as the local ground. |
-| "OT" (abbreviation) | **OpenTendril** (written) / **Tendril** (short) | "OT" means *Operational Technology* in security/SDLC — never abbreviate the brand to it. |
-| *agent / task / run* in architecture or code | botanical equivalents | These survive **only** at the external boundary (`AGENTS.md`, Meristem/intent layer). |
 
 ---
 
