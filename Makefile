@@ -1,7 +1,7 @@
 .PHONY: sprout sprout-all build up down health test clean check-all
 
 # --- Stem Binaries ---
-STEM_VERSION := 0.1.0
+STEM_VERSION := 0.2.0
 STEM_DIR := cmd/stem
 DIST_DIR := cmd/stem/dist
 
