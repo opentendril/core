@@ -38,6 +38,26 @@ func TestMeshWireKeysAreCamelCase(t *testing.T) {
 			SignedAt:  1234567890,
 			Signature: "signature",
 		},
+		"TraitRecord": TraitRecord{
+			TraitID: "trait-123",
+			Trait: TraitEnvelope{
+				Trait: TraitPayload{
+					Kind:    TraitKindGenotype,
+					Name:    "test-genotype",
+					Version: "v1",
+					Content: "content",
+				},
+				Origin: TraitOrigin{
+					NodeID:               "node-123",
+					PublicKeyFingerprint: "fingerprint",
+				},
+				SignedAt:  1234567890,
+				Signature: "signature",
+			},
+			Status:       TraitStatusPending,
+			AcceptPolicy: "manual",
+			ReceivedAt:   1234567890,
+		},
 		"adminIssueTokenRequest": adminIssueTokenRequest{
 			Issuer:        "issuer",
 			Subject:       "subject",
