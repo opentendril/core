@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -38,12 +39,45 @@ var treeSitterSymbolTypes = map[string]struct{}{
 	"file_context": {},
 }
 
+// treeSitterExtensions is the file-extension coverage of the batch pre-pass;
+// it mirrors parse.js LANGUAGE_BY_EXTENSION (and the regex fallback's
+// Supports set, so pre-pass coverage never exceeds what regex would claim).
+var treeSitterExtensions = []string{".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"}
+
+// treeSitterSupports reports whether the batch pre-pass can parse path.
+func treeSitterSupports(path string) bool {
+	extension := strings.ToLower(filepath.Ext(path))
+	for _, candidate := range treeSitterExtensions {
+		if extension == candidate {
+			return true
+		}
+	}
+	return false
+}
+
+// treeSitterCommand builds the parse.js invocation for a scan. A nil
+// changedPaths requests the container's own full workspace walk (the
+// cold-index path); a non-nil list switches parse.js to --stdin mode with the
+// newline-separated root-relative paths as the process stdin, so an
+// incremental re-scan parses only the delta. Pure function so tests can pin
+// the stdin protocol without Docker.
+func treeSitterCommand(changedPaths []string) (command []string, stdin []byte) {
+	command = []string{"node", "/opt/opentendril/parse.js", "/app"}
+	if changedPaths == nil {
+		return command, nil
+	}
+	command = append(command, "--stdin")
+	return command, []byte(strings.Join(changedPaths, "\n") + "\n")
+}
+
 // runTreeSitterScan executes the tree-sitter batch parser once over the
 // workspace in an idle terrarium, exactly like a verifier step: workspace
-// mounted read-only at /app, no network, hard timeout. It returns the raw
-// CommandResult; parseTreeSitterOutput turns it into symbols. No LLM is
-// involved and nothing is written back to the host.
-func runTreeSitterScan(ctx context.Context, providerName, workspacePath string) (terrarium.CommandResult, error) {
+// mounted read-only at /app, no network, hard timeout. A nil changedPaths
+// parses the whole workspace; a non-nil list parses exactly that subset (see
+// treeSitterCommand). It returns the raw CommandResult;
+// parseTreeSitterOutput turns it into symbols. No LLM is involved and nothing
+// is written back to the host.
+func runTreeSitterScan(ctx context.Context, providerName, workspacePath string, changedPaths []string) (terrarium.CommandResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -78,9 +112,11 @@ func runTreeSitterScan(ctx context.Context, providerName, workspacePath string) 
 	}
 	defer func() { _ = instance.Stop(context.Background()) }()
 
+	command, stdin := treeSitterCommand(changedPaths)
 	result, runErr := instance.Run(ctx, terrarium.CommandSpec{
-		Command:    []string{"node", "/opt/opentendril/parse.js", "/app"},
+		Command:    command,
 		WorkingDir: "/app",
+		Stdin:      stdin,
 		Timeout:    treeSitterScanTimeout,
 	})
 	if runErr != nil {
@@ -184,26 +220,78 @@ func isSafeRelativePath(cleaned string) bool {
 	return true
 }
 
+// treeSitterBatchParser is the terrarium-backed rhizome.BatchParser: one
+// container run parses either the whole workspace (nil paths, the cold-index
+// walk) or exactly the changed subset delivered to parse.js over stdin. It is
+// the only place the repo-level pre-pass touches Docker — rhizome sees just
+// the interface.
+type treeSitterBatchParser struct{}
+
+var _ rhizome.BatchParser = treeSitterBatchParser{}
+
+// Supports reports whether the pre-pass covers path (mirrors parse.js
+// LANGUAGE_BY_EXTENSION).
+func (treeSitterBatchParser) Supports(path string) bool {
+	return treeSitterSupports(path)
+}
+
+// ParseBatch runs the tree-sitter terrarium over root and returns the parsed
+// symbols keyed by root-relative slash path. Per the BatchParser contract, a
+// non-nil empty path list parses nothing — no container is started.
+func (treeSitterBatchParser) ParseBatch(ctx context.Context, root string, paths []string) (map[string][]rhizome.Symbol, error) {
+	if paths != nil && len(paths) == 0 {
+		return map[string][]rhizome.Symbol{}, nil
+	}
+	result, err := runTreeSitterScanFn(ctx, "", root, paths)
+	if err != nil {
+		return nil, err
+	}
+	return parseTreeSitterOutput(result)
+}
+
 // scanRepositoryParsers assembles the parser slice for a Rhizome scan. It
 // attempts the tree-sitter batch pre-pass and, on success, injects the
 // precomputed symbols between the native Go parser and the regex fallback —
 // first-match precedence keeps Go on go/ast, gives covered non-Go files
 // tree-sitter fidelity, and leaves everything else to the regex parser.
 //
+// The pre-pass is incremental: ChangedPaths replays the scanner's own
+// hash-vs-store comparison, so the container parses only the files
+// ScanRepository is about to re-parse. Three regimes fall out:
+//   - cold index (no stored records for eligible files): full container walk,
+//     exactly as before this slice;
+//   - warm index, nothing changed: no container at all — every eligible file
+//     will hash-skip, so precomputing symbols for it would be pure waste;
+//   - warm index with a delta: the changed list goes to parse.js over stdin
+//     and only that subset is parsed.
+//
 // On ANY failure (no Docker on a released binary, image build failure, bad
 // output, timeout) it warns on stderr and returns DefaultParsers, so a bare
 // docker-less `tendril repomap` behaves exactly as before this pre-pass
 // existed. Workspaces with no tree-sitter-eligible files skip the container
 // entirely.
-func scanRepositoryParsers(ctx context.Context, mountPath string) []rhizome.Parser {
-	if !workspaceHasExtension(mountPath, ".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts") {
+func scanRepositoryParsers(ctx context.Context, mountPath string, repositoryName string, store rhizome.IndexStore) []rhizome.Parser {
+	if !workspaceHasExtension(mountPath, treeSitterExtensions...) {
 		return rhizome.DefaultParsers()
 	}
 
-	result, err := runTreeSitterScanFn(ctx, "", mountPath)
+	batch := treeSitterBatchParser{}
+	changed, warmIndex, err := rhizome.ChangedPaths(ctx, mountPath, repositoryName, store, batch.Supports)
 	if err == nil {
+		if warmIndex && len(changed) == 0 {
+			// Incremental no-op: every eligible file is unchanged and will
+			// hash-skip inside ScanRepository, so skip the container entirely.
+			return rhizome.DefaultParsers()
+		}
+		paths := changed
+		if !warmIndex {
+			// Cold index: let parse.js walk the workspace itself instead of
+			// shipping the (identical) full file list over stdin.
+			paths = nil
+		}
+
 		var symbolsByPath map[string][]rhizome.Symbol
-		symbolsByPath, err = parseTreeSitterOutput(result)
+		symbolsByPath, err = batch.ParseBatch(ctx, mountPath, paths)
 		if err == nil {
 			return []rhizome.Parser{
 				rhizome.GoParser{},

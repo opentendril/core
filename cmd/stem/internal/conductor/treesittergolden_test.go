@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -48,11 +49,15 @@ type goldenSymbol struct {
 // Go CI job (which has no prebuilt image) fast and green while still enforcing
 // fidelity on any machine that has run the pre-pass. Build the image first to
 // exercise it: `docker build -t opentendril-tree-sitter:latest sprouts/tree-sitter/`.
-func TestTreeSitterGoldenFidelity(t *testing.T) {
-	// OTTS_REQUIRE_GOLDEN=1 turns unmet preconditions into failures instead of
-	// skips. CI sets it so a missing docker binary or an un-built image can
-	// never masquerade as a pass — a green run must mean the fidelity was
-	// actually checked. Locally the test still skips gracefully.
+// gateTreeSitterGolden enforces the docker preconditions shared by every
+// golden test, and returns the fixture-repo path once they hold.
+//
+// OTTS_REQUIRE_GOLDEN=1 turns unmet preconditions into failures instead of
+// skips. CI sets it so a missing docker binary or an un-built image can
+// never masquerade as a pass — a green run must mean the fidelity was
+// actually checked. Locally the tests still skip gracefully.
+func gateTreeSitterGolden(t *testing.T) string {
+	t.Helper()
 	requireGolden := os.Getenv("OTTS_REQUIRE_GOLDEN") == "1"
 	skipOrFail := func(format string, args ...any) {
 		t.Helper()
@@ -64,20 +69,22 @@ func TestTreeSitterGoldenFidelity(t *testing.T) {
 
 	if _, err := exec.LookPath("docker"); err != nil {
 		skipOrFail("docker not on PATH; cannot run tree-sitter golden fidelity test")
-		return
 	}
 	if err := exec.Command("docker", "image", "inspect", treeSitterImage).Run(); err != nil {
 		skipOrFail("%s not built; run `docker build -t %s sprouts/tree-sitter/` to exercise this test", treeSitterImage, treeSitterImage)
-		return
 	}
 
 	root, err := repoSourceRoot()
 	if err != nil {
 		t.Fatalf("locate repo root: %v", err)
 	}
-	fixtures := filepath.Join(root, "sprouts", "tree-sitter", "testdata", "repo")
+	return filepath.Join(root, "sprouts", "tree-sitter", "testdata", "repo")
+}
 
-	result, err := runTreeSitterScan(context.Background(), "", fixtures)
+func TestTreeSitterGoldenFidelity(t *testing.T) {
+	fixtures := gateTreeSitterGolden(t)
+
+	result, err := runTreeSitterScan(context.Background(), "", fixtures, nil)
 	if err != nil {
 		t.Fatalf("run tree-sitter scan over fixtures: %v", err)
 	}
@@ -115,6 +122,62 @@ func TestTreeSitterGoldenFidelity(t *testing.T) {
 	}
 	if string(got) != string(want) {
 		t.Fatalf("tree-sitter symbols drifted from golden.\nRebuild the image, then regenerate with -update-treesitter-golden.\n\n--- got ---\n%s", got)
+	}
+}
+
+// TestTreeSitterGoldenFidelityIncremental exercises the incremental
+// (changed-subset) container path against the same golden fixture: parse.js
+// runs in --stdin mode over an explicit file list instead of walking the
+// workspace. The subset's symbols must match the full-walk golden exactly —
+// incremental parsing may never change fidelity, only scope — and paths
+// outside the subset (plus unsafe or skip-listed paths smuggled into the
+// list) must not be parsed at all.
+func TestTreeSitterGoldenFidelityIncremental(t *testing.T) {
+	if *updateTreeSitterGolden {
+		t.Skip("golden regeneration uses the full-walk test; the incremental test only consumes the fixture")
+	}
+	fixtures := gateTreeSitterGolden(t)
+
+	subset := []string{"models.py", "widget.tsx"}
+	// Defense-in-depth probes: a changed-file list is host-computed, but the
+	// container must still refuse traversal and skip-listed paths.
+	requested := append(append([]string{}, subset...),
+		"../outside.py",
+		"node_modules/ignored.js",
+	)
+
+	result, err := runTreeSitterScan(context.Background(), "", fixtures, requested)
+	if err != nil {
+		t.Fatalf("run incremental tree-sitter scan: %v", err)
+	}
+	symbolsByPath, err := parseTreeSitterOutput(result)
+	if err != nil {
+		t.Fatalf("parse tree-sitter output: %v", err)
+	}
+
+	var golden map[string][]goldenSymbol
+	goldenBytes, err := os.ReadFile(filepath.Join("testdata", "treesittergolden.json"))
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if err := json.Unmarshal(goldenBytes, &golden); err != nil {
+		t.Fatalf("unmarshal golden: %v", err)
+	}
+
+	want := make(map[string][]goldenSymbol, len(subset))
+	for _, path := range subset {
+		rows, ok := golden[path]
+		if !ok {
+			t.Fatalf("golden fixture is missing %q; the subset must reference pinned files", path)
+		}
+		want[path] = rows
+	}
+
+	got := projectGolden(symbolsByPath)
+	if !reflect.DeepEqual(got, want) {
+		gotJSON, _ := json.MarshalIndent(got, "", "  ")
+		wantJSON, _ := json.MarshalIndent(want, "", "  ")
+		t.Fatalf("incremental subset drifted from golden.\n--- got ---\n%s\n--- want ---\n%s", gotJSON, wantJSON)
 	}
 }
 

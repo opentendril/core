@@ -2,10 +2,17 @@
 // OpenTendril tree-sitter terrarium batch parser.
 //
 // The Conductor mounts a workspace read-only at /app and execs this script
-// once per Rhizome scan (a repo-level batch pre-pass, not per-file). It walks
-// the workspace, parses every Python/JavaScript/TypeScript/TSX source file
-// with pinned web-tree-sitter grammars, and emits NDJSON to stdout — one line
-// per successfully parsed file, sorted by path:
+// once per Rhizome scan (a repo-level batch pre-pass, not per-file). It
+// parses Python/JavaScript/TypeScript/TSX source files with pinned
+// web-tree-sitter grammars and emits NDJSON to stdout — one line per
+// successfully parsed file, sorted by path. Two modes select which files:
+//
+//   node parse.js /app            walk the whole workspace (cold scan)
+//   node parse.js /app --stdin    parse only the newline-separated
+//                                 root-relative paths read from stdin (the
+//                                 host's changed-file delta; incremental scan)
+//
+// Output contract is identical in both modes:
 //
 //   {"path":"src/x.py","symbols":[{"name","type","lineStart","lineEnd","stub"}]}
 //
@@ -395,15 +402,77 @@ function collectFiles(rootDir, relativeDir, out) {
   }
 }
 
+// isSafeWorkspacePath accepts only the paths an honest changed-file delta can
+// contain: relative, slash-separated, no traversal, and not inside a skipped
+// directory. The Go host computes the list from its own walk, but the
+// container revalidates so a compromised caller can never point the parser at
+// /etc or vendored trees. Mirrors conductor/treesitter.go isSafeRelativePath
+// plus the SKIP_SEGMENTS rule.
+function isSafeWorkspacePath(relativePath) {
+  if (relativePath.startsWith('/') || relativePath.includes('\\')) {
+    return false;
+  }
+  for (const segment of relativePath.split('/')) {
+    if (segment === '' || segment === '.' || segment === '..') {
+      return false;
+    }
+    if (SKIP_SEGMENTS.has(segment.toLowerCase())) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// readStdinFileList reads the incremental mode's newline-separated,
+// root-relative changed-file list from stdin, dropping (with a stderr note)
+// anything unsafe or outside the supported extensions. Deduped and sorted so
+// output order stays deterministic like the walk mode's.
+function readStdinFileList() {
+  let raw = '';
+  try {
+    raw = fs.readFileSync(0, 'utf8');
+  } catch (err) {
+    process.stderr.write(`tree-sitter: failed to read stdin file list: ${err.message}\n`);
+    return [];
+  }
+  const files = [];
+  const seen = new Set();
+  for (const line of raw.split('\n')) {
+    const relativePath = line.trim();
+    if (relativePath === '') {
+      continue;
+    }
+    if (!isSafeWorkspacePath(relativePath)) {
+      process.stderr.write(`tree-sitter: skipping unsafe path from stdin: ${relativePath}\n`);
+      continue;
+    }
+    if (!(path.extname(relativePath).toLowerCase() in LANGUAGE_BY_EXTENSION)) {
+      continue;
+    }
+    if (seen.has(relativePath)) {
+      continue;
+    }
+    seen.add(relativePath);
+    files.push(relativePath);
+  }
+  return files;
+}
+
 async function main() {
-  const root = process.argv[2] || '/app';
+  const args = process.argv.slice(2);
+  const useStdin = args.includes('--stdin');
+  const root = args.find((arg) => !arg.startsWith('--')) || '/app';
 
   await Parser.init();
   const parser = new Parser();
   const loadedLanguages = {};
 
   const files = [];
-  collectFiles(root, '', files);
+  if (useStdin) {
+    files.push(...readStdinFileList());
+  } else {
+    collectFiles(root, '', files);
+  }
   files.sort();
 
   for (const relativePath of files) {

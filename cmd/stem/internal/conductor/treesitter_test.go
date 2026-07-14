@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/opentendril/core/cmd/stem/internal/rhizome"
@@ -129,6 +130,45 @@ func TestParseTreeSitterOutputFailsOnTimeout(t *testing.T) {
 	}
 }
 
+func TestTreeSitterCommandModes(t *testing.T) {
+	command, stdin := treeSitterCommand(nil)
+	if !reflect.DeepEqual(command, []string{"node", "/opt/opentendril/parse.js", "/app"}) {
+		t.Fatalf("full-walk command mismatch: %v", command)
+	}
+	if stdin != nil {
+		t.Fatalf("full walk must not send stdin, got %q", stdin)
+	}
+
+	command, stdin = treeSitterCommand([]string{"src/a.py", "src/b.ts"})
+	if !reflect.DeepEqual(command, []string{"node", "/opt/opentendril/parse.js", "/app", "--stdin"}) {
+		t.Fatalf("incremental command mismatch: %v", command)
+	}
+	if string(stdin) != "src/a.py\nsrc/b.ts\n" {
+		t.Fatalf("stdin payload mismatch: %q", stdin)
+	}
+}
+
+func TestTreeSitterBatchParserSkipsContainerForEmptyDelta(t *testing.T) {
+	original := runTreeSitterScanFn
+	defer func() { runTreeSitterScanFn = original }()
+	called := false
+	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string, changedPaths []string) (terrarium.CommandResult, error) {
+		called = true
+		return terrarium.CommandResult{}, nil
+	}
+
+	symbolsByPath, err := treeSitterBatchParser{}.ParseBatch(context.Background(), t.TempDir(), []string{})
+	if err != nil {
+		t.Fatalf("ParseBatch returned error: %v", err)
+	}
+	if called {
+		t.Fatal("an explicit empty delta must not start a container")
+	}
+	if len(symbolsByPath) != 0 {
+		t.Fatalf("expected an empty symbol map, got %v", symbolsByPath)
+	}
+}
+
 // polyglotWorkspace lays down a workspace with a tree-sitter-eligible file so
 // scanRepositoryParsers actually attempts the pre-pass.
 func polyglotWorkspace(t *testing.T) string {
@@ -140,17 +180,37 @@ func polyglotWorkspace(t *testing.T) string {
 	return root
 }
 
+// openScanTestStore opens a real (temp-file SQLite) index store, since
+// scanRepositoryParsers consults it to compute the changed-file delta.
+func openScanTestStore(t *testing.T) rhizome.IndexStore {
+	t.Helper()
+	encryptor, err := rhizome.NewEncryptor([]byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		t.Fatalf("NewEncryptor returned error: %v", err)
+	}
+	store, err := rhizome.OpenSQLiteIndexStore(context.Background(), filepath.Join(t.TempDir(), "rhizome.db"), encryptor)
+	if err != nil {
+		t.Fatalf("OpenSQLiteIndexStore returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	return store
+}
+
 func TestScanRepositoryParsersInjectsPrecomputedOnSuccess(t *testing.T) {
 	original := runTreeSitterScanFn
 	defer func() { runTreeSitterScanFn = original }()
-	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string) (terrarium.CommandResult, error) {
+	var capturedPaths []string
+	pathsCaptured := false
+	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string, changedPaths []string) (terrarium.CommandResult, error) {
+		capturedPaths = changedPaths
+		pathsCaptured = true
 		return terrarium.CommandResult{
 			ExitCode: 0,
 			Stdout:   `{"path":"service.py","symbols":[{"name":"run","type":"function","lineStart":1,"lineEnd":2,"stub":"def run():"}]}` + "\n",
 		}, nil
 	}
 
-	parsers := scanRepositoryParsers(context.Background(), polyglotWorkspace(t))
+	parsers := scanRepositoryParsers(context.Background(), polyglotWorkspace(t), "workspace", openScanTestStore(t))
 	if len(parsers) != 3 {
 		t.Fatalf("parser count mismatch: got %d want 3", len(parsers))
 	}
@@ -167,16 +227,98 @@ func TestScanRepositoryParsersInjectsPrecomputedOnSuccess(t *testing.T) {
 	if _, ok := parsers[2].(rhizome.RegexParser); !ok {
 		t.Fatalf("expected RegexParser last, got %T", parsers[2])
 	}
+	// A cold index (no stored file records) must request the container's own
+	// full walk, not ship a file list over stdin.
+	if !pathsCaptured || capturedPaths != nil {
+		t.Fatalf("cold index must pass nil changedPaths for a full walk, got %v (captured=%v)", capturedPaths, pathsCaptured)
+	}
+}
+
+func TestScanRepositoryParsersWarmIndexParsesOnlyDelta(t *testing.T) {
+	root := t.TempDir()
+	writeFixture := func(name, content string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("write fixture %s: %v", name, err)
+		}
+	}
+	writeFixture("service.py", "def run():\n    pass\n")
+	writeFixture("widget.ts", "export function widget() {}\n")
+
+	store := openScanTestStore(t)
+	// Warm the index: after this scan every file's hash is recorded.
+	if _, err := rhizome.ScanRepository(context.Background(), root, "workspace", store, rhizome.DefaultParsers()); err != nil {
+		t.Fatalf("initial warm scan: %v", err)
+	}
+
+	// One changed file and one new file form the delta; service.py stays put.
+	writeFixture("widget.ts", "export function widget() { return 1 }\n")
+	writeFixture("fresh.py", "def fresh():\n    pass\n")
+
+	original := runTreeSitterScanFn
+	defer func() { runTreeSitterScanFn = original }()
+	var capturedPaths []string
+	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string, changedPaths []string) (terrarium.CommandResult, error) {
+		capturedPaths = changedPaths
+		return terrarium.CommandResult{
+			ExitCode: 0,
+			Stdout: `{"path":"widget.ts","symbols":[{"name":"widget","type":"function","lineStart":1,"lineEnd":1,"stub":"export function widget()"}]}
+{"path":"fresh.py","symbols":[{"name":"fresh","type":"function","lineStart":1,"lineEnd":2,"stub":"def fresh():"}]}
+`,
+		}, nil
+	}
+
+	parsers := scanRepositoryParsers(context.Background(), root, "workspace", store)
+	if !reflect.DeepEqual(capturedPaths, []string{"fresh.py", "widget.ts"}) {
+		t.Fatalf("expected only the delta to reach the container, got %v", capturedPaths)
+	}
+	if len(parsers) != 3 {
+		t.Fatalf("parser count mismatch: got %d want 3", len(parsers))
+	}
+	precomputed, ok := parsers[1].(rhizome.PrecomputedParser)
+	if !ok {
+		t.Fatalf("expected PrecomputedParser second, got %T", parsers[1])
+	}
+	if !precomputed.Supports("widget.ts") || !precomputed.Supports("fresh.py") {
+		t.Fatal("expected the precomputed parser to cover the delta files")
+	}
+	if precomputed.Supports("service.py") {
+		t.Fatal("an unchanged file must not be precomputed — hash-skip covers it")
+	}
+}
+
+func TestScanRepositoryParsersSkipsContainerWhenNothingChanged(t *testing.T) {
+	root := polyglotWorkspace(t)
+	store := openScanTestStore(t)
+	if _, err := rhizome.ScanRepository(context.Background(), root, "workspace", store, rhizome.DefaultParsers()); err != nil {
+		t.Fatalf("initial warm scan: %v", err)
+	}
+
+	original := runTreeSitterScanFn
+	defer func() { runTreeSitterScanFn = original }()
+	called := false
+	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string, changedPaths []string) (terrarium.CommandResult, error) {
+		called = true
+		return terrarium.CommandResult{}, nil
+	}
+
+	parsers := scanRepositoryParsers(context.Background(), root, "workspace", store)
+	if called {
+		t.Fatal("a warm index with no changes must not start the tree-sitter container")
+	}
+	if len(parsers) != 2 {
+		t.Fatalf("expected DefaultParsers when nothing changed, got %d parsers", len(parsers))
+	}
 }
 
 func TestScanRepositoryParsersFallsBackWhenScanFails(t *testing.T) {
 	original := runTreeSitterScanFn
 	defer func() { runTreeSitterScanFn = original }()
-	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string) (terrarium.CommandResult, error) {
+	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string, changedPaths []string) (terrarium.CommandResult, error) {
 		return terrarium.CommandResult{}, fmt.Errorf("docker daemon unreachable")
 	}
 
-	parsers := scanRepositoryParsers(context.Background(), polyglotWorkspace(t))
+	parsers := scanRepositoryParsers(context.Background(), polyglotWorkspace(t), "workspace", openScanTestStore(t))
 	if len(parsers) != 2 {
 		t.Fatalf("expected DefaultParsers on batch failure, got %d parsers", len(parsers))
 	}
@@ -191,11 +333,11 @@ func TestScanRepositoryParsersFallsBackWhenScanFails(t *testing.T) {
 func TestScanRepositoryParsersFallsBackOnBadOutput(t *testing.T) {
 	original := runTreeSitterScanFn
 	defer func() { runTreeSitterScanFn = original }()
-	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string) (terrarium.CommandResult, error) {
+	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string, changedPaths []string) (terrarium.CommandResult, error) {
 		return terrarium.CommandResult{ExitCode: 137, Stderr: "OOM-killed"}, nil
 	}
 
-	parsers := scanRepositoryParsers(context.Background(), polyglotWorkspace(t))
+	parsers := scanRepositoryParsers(context.Background(), polyglotWorkspace(t), "workspace", openScanTestStore(t))
 	if len(parsers) != 2 {
 		t.Fatalf("expected DefaultParsers on unusable batch output, got %d parsers", len(parsers))
 	}
@@ -205,7 +347,7 @@ func TestScanRepositoryParsersSkipsContainerForNonEligibleWorkspace(t *testing.T
 	original := runTreeSitterScanFn
 	defer func() { runTreeSitterScanFn = original }()
 	called := false
-	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string) (terrarium.CommandResult, error) {
+	runTreeSitterScanFn = func(ctx context.Context, providerName, workspacePath string, changedPaths []string) (terrarium.CommandResult, error) {
 		called = true
 		return terrarium.CommandResult{}, nil
 	}
@@ -215,7 +357,7 @@ func TestScanRepositoryParsersSkipsContainerForNonEligibleWorkspace(t *testing.T
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	parsers := scanRepositoryParsers(context.Background(), root)
+	parsers := scanRepositoryParsers(context.Background(), root, "workspace", openScanTestStore(t))
 	if called {
 		t.Fatal("expected a Go-only workspace to skip the tree-sitter container entirely")
 	}

@@ -52,8 +52,10 @@ func GenerateRepoMap(ctx context.Context, mountPath string) (string, error) {
 
 	// Batch pre-pass: attempt the tree-sitter terrarium for high-fidelity
 	// non-Go symbols; on any failure this degrades to DefaultParsers so a
-	// docker-less `tendril repomap` keeps working.
-	parsers := scanRepositoryParsers(ctx, mountPath)
+	// docker-less `tendril repomap` keeps working. The pre-pass consults the
+	// store first so a warm index only pays the container for changed files
+	// (and skips it entirely when nothing changed).
+	parsers := scanRepositoryParsers(ctx, mountPath, repositoryName, store)
 	if _, err := rhizome.ScanRepository(ctx, mountPath, repositoryName, store, parsers); err != nil {
 		return "", fmt.Errorf("scan repository: %w", err)
 	}
