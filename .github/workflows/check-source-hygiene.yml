@@ -21,5 +21,8 @@ jobs:
       # pre-existing references never fail it (the check is diff-based).
       - name: No new GitHub issue/PR references
         run: |
-          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          # Full (not shallow) fetch of the base so the merge-base for the
+          # diff resolves — a shallow base makes `base...HEAD` mis-report
+          # pre-existing lines as added.
+          git fetch --no-tags origin "${{ github.base_ref }}"
           bash scripts/check-no-issue-refs.sh "origin/${{ github.base_ref }}"
