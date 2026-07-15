@@ -21,7 +21,7 @@ OpenTendril is built on a strict synthetic biological architecture. Any external
 ## 2. Builder Authority & PR Discipline
 
 Any external builder agent or process must operate under strict boundary constraints:
-* **No Merge Authority:** Builders do not own merge authority. A builder must never merge a PR or enable auto-merge **on its own initiative**. The sole exception is an **explicit, per-PR human instruction** to merge a specific PR (e.g. the human says "merge #123"); a blanket or standing "you may merge" does not qualify, and the builder must never enable auto-merge. Absent such a direct instruction, the human merges at Gate C.
+* **No Merge Authority:** Builders do not own merge authority. A builder must never merge a PR or enable auto-merge **on its own initiative**. The sole exception is an **explicit, per-PR human instruction** to merge a specific named PR; a blanket or standing "you may merge" does not qualify, and the builder must never enable auto-merge. Absent such a direct instruction, the human merges at Gate C.
 * **Scope Discipline:** Keep Pull Requests small, isolated, and single-purpose (one task/issue per PR).
 * **Minimal Diffs:** Avoid drive-by or speculative refactors. Stick strictly to the approved plan.
 * **No Direct Push to Main:** Never commit or push directly to the `main` branch. All changes must go through a staging branch.
