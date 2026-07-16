@@ -83,21 +83,21 @@ func buildPassthroughCore(ctx context.Context) (core.Core, error) {
 	if err != nil {
 		return nil, err
 	}
-	return core.NewService(manager).WithPassthrough(passthroughOps()), nil
+	return core.NewService(manager).WithPassthrough(passthroughOperations()), nil
 }
 
-// passthroughOps binds the passthrough execution port to the conductor's
+// passthroughOperations binds the passthrough execution port to the conductor's
 // sealed-terrarium runner — this wiring lives in the adapter layer precisely
 // so the Core never imports the conductor (see internal/core/boundary_test.go).
 // It owns named-substrate resolution and the translation between the Core's
 // transport-free spec and the conductor's execution request.
-func passthroughOps() core.PassthroughOps {
+func passthroughOperations() core.PassthroughOperations {
 	substratesConfig, err := conductor.LoadSubstratesConfig("")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "⚠️ Failed to load substrates config: %v\n", err)
 	}
 
-	return core.PassthroughOps{
+	return core.PassthroughOperations{
 		Run: func(ctx context.Context, spec core.PassthroughSpec) (core.PassthroughRunResult, error) {
 			workspace := spec.Substrate
 			if substrateSpec, isName := conductor.ResolveSubstrate(spec.Substrate, substratesConfig); isName && substrateSpec != nil {

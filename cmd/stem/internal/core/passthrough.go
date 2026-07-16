@@ -74,7 +74,7 @@ type PassthroughRunInput struct {
 }
 
 // PassthroughSpec is the fully resolved, transport-free execution request
-// handed to the PassthroughOps port.
+// handed to the PassthroughOperations port.
 type PassthroughSpec struct {
 	Substrate string
 	Command   []string
@@ -108,10 +108,10 @@ const (
 	passthroughMaximumTimeout = 30 * time.Minute
 )
 
-// PassthroughOps is the injection port for passthrough execution. Run may be
+// PassthroughOperations is the injection port for passthrough execution. Run may be
 // nil, in which case the capability reports that it is not wired rather than
 // acting.
-type PassthroughOps struct {
+type PassthroughOperations struct {
 	// Run executes the spec inside a sealed Terrarium and returns the
 	// command's outcome. Implementations own substrate resolution, egress
 	// mediation, and the Terrarium lifecycle.
@@ -120,8 +120,8 @@ type PassthroughOps struct {
 
 // WithPassthrough wires the passthrough execution port onto the Service and
 // returns the Service for chaining.
-func (s *Service) WithPassthrough(ops PassthroughOps) *Service {
-	s.passthrough = ops
+func (s *Service) WithPassthrough(operations PassthroughOperations) *Service {
+	s.passthrough = operations
 	return s
 }
 
@@ -129,7 +129,7 @@ func (s *Service) WithPassthrough(ops PassthroughOps) *Service {
 // completion via the injected execution port.
 func (s *Service) PassthroughRun(ctx context.Context, in PassthroughRunInput) (PassthroughRunResult, error) {
 	if s.passthrough.Run == nil {
-		return PassthroughRunResult{}, fmt.Errorf("passthrough.run is not wired: construct the Core with WithPassthrough(PassthroughOps{Run: …})")
+		return PassthroughRunResult{}, fmt.Errorf("passthrough.run is not wired: construct the Core with WithPassthrough(PassthroughOperations{Run: …})")
 	}
 	if strings.TrimSpace(in.Substrate) == "" {
 		return PassthroughRunResult{}, fmt.Errorf("substrate is required")

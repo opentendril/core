@@ -20,7 +20,7 @@ func newPassthroughTestHandler(t *testing.T, grants []core.DelegationGrant) (*ht
 
 	executed := &atomic.Int64{}
 	lastSpec := &core.PassthroughSpec{}
-	coreSvc := core.NewService(nil).WithPassthrough(core.PassthroughOps{
+	coreSvc := core.NewService(nil).WithPassthrough(core.PassthroughOperations{
 		Run: func(ctx context.Context, spec core.PassthroughSpec) (core.PassthroughRunResult, error) {
 			executed.Add(1)
 			*lastSpec = spec
@@ -194,7 +194,7 @@ func TestPassthroughCallerCannotSupplyEgress(t *testing.T) {
 // a handler constructed without WithDelegation still denies delegated-marked
 // traffic while non-delegated traffic is untouched.
 func TestPassthroughDelegatedDeniedWithNilGate(t *testing.T) {
-	coreSvc := core.NewService(nil).WithPassthrough(core.PassthroughOps{
+	coreSvc := core.NewService(nil).WithPassthrough(core.PassthroughOperations{
 		Run: func(ctx context.Context, spec core.PassthroughSpec) (core.PassthroughRunResult, error) {
 			return core.PassthroughRunResult{Status: "completed"}, nil
 		},

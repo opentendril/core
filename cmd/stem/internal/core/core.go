@@ -78,7 +78,7 @@ type Core interface {
 	SproutRun(ctx context.Context, in SproutRunInput) (SproutRunResult, error)
 	// Passthrough family: one bounded command in a sealed Terrarium, the
 	// minimal delegable operation-class. Runs through the injected
-	// PassthroughOps execution port.
+	// PassthroughOperations execution port.
 	PassthroughRun(ctx context.Context, in PassthroughRunInput) (PassthroughRunResult, error)
 
 	// Capabilities returns the declarative registry that every surface
@@ -163,7 +163,7 @@ type Service struct {
 	mesh        MeshOps
 	sequence    SequenceOps
 	sprout      SproutOps
-	passthrough PassthroughOps
+	passthrough PassthroughOperations
 }
 
 // NewService builds a Core over the shared SessionManager.

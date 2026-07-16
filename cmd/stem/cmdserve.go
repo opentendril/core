@@ -202,7 +202,7 @@ func runServeCmd(ctx context.Context, args []string) {
 		WithMesh(meshOps()).
 		WithSequence(serveSequenceOps(resolveRepoRoot(""), bus)).
 		WithSprout(sproutOps(history)).
-		WithPassthrough(passthroughOps())
+		WithPassthrough(passthroughOperations())
 
 	// Native scheduled sequences: cron entries from
 	// .tendril/schedules.yaml grow Sequences and Sprouts inside this daemon,

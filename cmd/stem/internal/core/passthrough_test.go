@@ -12,7 +12,7 @@ import (
 func newPassthroughService(t *testing.T) (*Service, *PassthroughSpec) {
 	t.Helper()
 	captured := &PassthroughSpec{}
-	svc := NewService(nil).WithPassthrough(PassthroughOps{
+	svc := NewService(nil).WithPassthrough(PassthroughOperations{
 		Run: func(_ context.Context, spec PassthroughSpec) (PassthroughRunResult, error) {
 			*captured = spec
 			return PassthroughRunResult{Status: "completed", ExitCode: 0}, nil
