@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,8 +25,11 @@ import (
 //
 // `dynamic` is CLI-local sugar: it synthesizes a one-step sequence file from
 // a natural-language prompt and then invokes the same governed sequence.run
-// capability on it. `--detach` is likewise adapter-local: it hands the run to
-// the Stem daemon's async endpoint instead of executing in-process.
+// capability on it. `scoped-ci` is the same shape of sugar for deterministic
+// verification: it generates a change-scoped verifier sequence and runs it
+// through the same capability. `--detach` is likewise adapter-local: it hands
+// the run to the Stem daemon's async endpoint instead of executing
+// in-process.
 func runSequenceCmd(ctx context.Context, args []string) {
 	if len(args) == 0 {
 		printSequenceUsage()
@@ -39,6 +43,8 @@ func runSequenceCmd(ctx context.Context, args []string) {
 		runSequenceListCmd(ctx)
 	case "dynamic":
 		runSequenceDynamicCmd(ctx, args[1:])
+	case "scoped-ci":
+		runSequenceScopedCICmd(ctx, args[1:])
 	case "-h", "--help", "help":
 		printSequenceUsage()
 	default:
@@ -185,6 +191,114 @@ func runSequenceDynamicCmd(ctx context.Context, args []string) {
 	}
 
 	renderSequenceRunResult(result)
+}
+
+// runSequenceScopedCICmd generates the change-scoped verification sequence
+// (see conductor.GenerateScopedVerificationSequence) and runs it through the
+// same governed sequence.run capability `run` and `dynamic` use, then renders
+// a final verdict that distinguishes green from failed from blocked —
+// blocked meaning the sealed run skipped applicable tests and therefore
+// verified less than it was asked to, which must never read as green.
+func runSequenceScopedCICmd(ctx context.Context, args []string) {
+	baseReference := ""
+	remaining := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--base" {
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "❌ flag --base requires a value")
+				os.Exit(1)
+			}
+			i++
+			baseReference = args[i]
+			continue
+		}
+		remaining = append(remaining, args[i])
+	}
+
+	input, detach, err := parseSequenceArgs(core.CapSequenceRun, remaining)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ %v\n", err)
+		os.Exit(1)
+	}
+	if positional, _ := input["pathOrName"].(string); strings.TrimSpace(positional) != "" {
+		fmt.Fprintf(os.Stderr, "❌ Unexpected argument %q: scoped-ci takes no sequence path — it generates its own\n", positional)
+		printSequenceUsage()
+		os.Exit(1)
+	}
+
+	root, err := os.Getwd()
+	if err != nil {
+		root = "."
+	}
+	root = resolveRepoRoot(root)
+
+	seq, err := conductor.GenerateScopedVerificationSequence(ctx, root, baseReference)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to generate scoped-ci sequence: %v\n", err)
+		os.Exit(1)
+	}
+	if strings.TrimSpace(baseReference) == "" {
+		baseReference = conductor.DefaultScopedVerificationBaseReference
+	}
+	fmt.Fprintf(os.Stdout, "🧭 scoped-ci: %d verifier step(s) generated against base %s\n", len(seq.Steps), baseReference)
+	for _, step := range seq.Steps {
+		fmt.Fprintf(os.Stdout, "   %s: %s\n", step.ID, strings.Join(step.Command, " "))
+	}
+
+	sequencesDir := filepath.Join(root, ".tendril", "sequences")
+	if err := os.MkdirAll(sequencesDir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to create sequence directory: %v\n", err)
+		os.Exit(1)
+	}
+	tempFile, err := os.CreateTemp(sequencesDir, "scoped-ci-*.yaml")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to create temporary sequence: %v\n", err)
+		os.Exit(1)
+	}
+	tempPath := tempFile.Name()
+	if err := tempFile.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		fmt.Fprintf(os.Stderr, "❌ Failed to close temporary sequence: %v\n", err)
+		os.Exit(1)
+	}
+	if err := conductor.SaveSequence(tempPath, seq); err != nil {
+		_ = os.Remove(tempPath)
+		fmt.Fprintf(os.Stderr, "❌ Failed to save temporary sequence: %v\n", err)
+		os.Exit(1)
+	}
+
+	input["pathOrName"] = tempPath
+	if detach {
+		provider, _ := input["provider"].(string)
+		model, _ := input["model"].(string)
+		baseURL, _ := input["baseURL"].(string)
+		submitSequenceAsync(ctx, tempPath, provider, model, baseURL)
+		return
+	}
+
+	svc, err := buildSequenceCore(ctx)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize core: %v\n", err)
+		os.Exit(1)
+	}
+
+	result, runErr := svc.Invoke(ctx, core.CapSequenceRun, input)
+
+	if err := os.Remove(tempPath); err != nil && !os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "⚠️ Failed to remove temporary sequence %s: %v\n", tempPath, err)
+	}
+
+	switch {
+	case runErr == nil:
+		renderSequenceRunResult(result)
+		fmt.Fprintln(os.Stdout, "✅ scoped-ci verdict: GREEN — every generated verifier step passed")
+	case errors.Is(runErr, conductor.ErrVerifierBlocked):
+		fmt.Fprintf(os.Stderr, "⛔ scoped-ci verdict: BLOCKED — the change is NOT verified: %v\n", runErr)
+		os.Exit(1)
+	default:
+		fmt.Fprintf(os.Stderr, "❌ scoped-ci verdict: FAILED — %v\n", runErr)
+		os.Exit(1)
+	}
 }
 
 // renderSequenceRunResult preserves the historic success line.
@@ -374,7 +488,7 @@ func parseSequenceArgs(capName string, args []string) (map[string]any, bool, err
 }
 
 func printSequenceUsage() {
-	fmt.Println("Usage: tendril sequence <run|list|dynamic> [arguments]")
+	fmt.Println("Usage: tendril sequence <run|list|dynamic|scoped-ci> [arguments]")
 	fmt.Println("  run <path_or_name>  Run a sequence YAML file from .tendril/sequences/ or a relative path")
 	fmt.Println("    --provider        LLM provider override (e.g. local)")
 	fmt.Println("    --model           LLM model override (e.g. llama3.2)")
@@ -385,6 +499,9 @@ func printSequenceUsage() {
 	fmt.Println("    --provider        LLM provider override")
 	fmt.Println("    --model           LLM model override")
 	fmt.Println("    --base-url        LLM base URL override")
+	fmt.Println("    --detach, -d      Run in background (requires daemon)")
+	fmt.Println("  scoped-ci           Generate and run the change-scoped verification sequence (no LLM)")
+	fmt.Println("    --base            Git reference the change set is diffed against (default origin/main)")
 	fmt.Println("    --detach, -d      Run in background (requires daemon)")
 	fmt.Println()
 	fmt.Println("run and list are projections of the shared Core capability registry.")
