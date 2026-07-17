@@ -2,6 +2,7 @@ package conductor
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -111,6 +112,75 @@ func goTestSubject(event goTestEvent) string {
 	default:
 		return event.Package
 	}
+}
+
+// ReportGoTestRun is the single skip-aware verdict over one completed
+// `go test -json` run, shared by every tier that judges such a run: the local
+// sealed verifier (reportGoTestVerifier) and the `tendril verdict go-test`
+// CLI the remote GitHub Actions gate calls. One implementation, so the tiers
+// cannot drift into disagreeing about what "green" means.
+//
+// The verdict needs the event stream AND the process exit code together: a
+// non-zero exit with no fail event (a compile error, for example) must still
+// fail — a judge that only read the stream would wave compile errors through.
+//
+// It returns the human-readable report and the verdict as an error:
+//
+//   - a fail event → failed;
+//   - a non-zero exit with no fail event → failed on the exit code;
+//   - a skip event carrying a test name → an error wrapping
+//     ErrVerifierBlocked: the run verified less than it was asked to, which
+//     must never read as green;
+//   - otherwise → nil (passed).
+//
+// commandLabel names the judged command in the report and the error messages;
+// stderr is the run's captured standard error, included in the report so a
+// compile error's text is not lost.
+func ReportGoTestRun(commandLabel string, exitCode int, stdout, stderr string) (string, error) {
+	outcome := evaluateGoTestJSONStream(stdout)
+	report := formatGoTestRunReport(commandLabel, exitCode, stdout, stderr, outcome)
+	switch {
+	case outcome.Verdict == goTestVerdictFailed:
+		return report, fmt.Errorf("verifier command %q failed: %d test(s) or package(s) failed", commandLabel, len(outcome.FailedSubjects))
+	case exitCode != 0:
+		return report, fmt.Errorf("verifier command %q failed (exit %d)", commandLabel, exitCode)
+	case outcome.Verdict == goTestVerdictBlocked:
+		return report, fmt.Errorf("verifier command %q is %w: %d applicable test(s) skipped and were not verified", commandLabel, ErrVerifierBlocked, len(outcome.SkippedTests))
+	}
+	return report, nil
+}
+
+// formatGoTestRunReport renders the skip-aware verdict of a `go test -json`
+// run: PASSED, FAILED, or BLOCKED. Instead of echoing the raw event stream —
+// one JSON object per output line — it names the failing and the skipped
+// (unverified) subjects, and includes the full stream only when the run
+// failed, where the output is the point.
+func formatGoTestRunReport(commandLabel string, exitCode int, stdout, stderr string, outcome goTestOutcome) string {
+	status := "PASSED"
+	switch {
+	case outcome.Verdict == goTestVerdictFailed || exitCode != 0:
+		status = "FAILED"
+	case outcome.Verdict == goTestVerdictBlocked:
+		status = "BLOCKED"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "🔬 %s — %s (exit %d)", commandLabel, status, exitCode)
+	if len(outcome.FailedSubjects) > 0 {
+		fmt.Fprintf(&b, "\nfailed: %s", strings.Join(outcome.FailedSubjects, ", "))
+	}
+	if len(outcome.SkippedTests) > 0 {
+		fmt.Fprintf(&b, "\nskipped and NOT verified: %s", strings.Join(outcome.SkippedTests, ", "))
+	}
+	if status == "FAILED" {
+		if out := strings.TrimSpace(stdout); out != "" {
+			fmt.Fprintf(&b, "\n%s", out)
+		}
+	}
+	if errOut := strings.TrimSpace(stderr); errOut != "" {
+		fmt.Fprintf(&b, "\n%s", errOut)
+	}
+	return b.String()
 }
 
 // isGoTestJSONCommand reports whether a verifier command is a `go test`
