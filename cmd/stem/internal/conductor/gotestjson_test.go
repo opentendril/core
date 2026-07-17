@@ -2,6 +2,7 @@ package conductor
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -217,14 +218,104 @@ func TestReportGoTestVerifierVerdicts(t *testing.T) {
 	})
 }
 
+// ReportGoTestRun is the one shared judgement both tiers call — the sealed
+// verifier and the `tendril verdict go-test` CLI behind the GitHub Actions
+// gate — so its table pins down every stream/exit-code combination.
+func TestReportGoTestRun(t *testing.T) {
+	cases := []struct {
+		name        string
+		exitCode    int
+		stream      string
+		wantErr     bool
+		wantBlocked bool
+		wantStatus  string
+	}{
+		{
+			name: "passing stream with exit 0 is green",
+			stream: event("run", "example.com/module/alpha", "TestAlpha") +
+				event("pass", "example.com/module/alpha", "TestAlpha") +
+				event("pass", "example.com/module/alpha", ""),
+			wantStatus: "PASSED",
+		},
+		{
+			name: "test-level skip is blocked, never green",
+			stream: event("skip", "example.com/module/alpha", "TestNeedsDocker") +
+				event("pass", "example.com/module/alpha", ""),
+			wantErr:     true,
+			wantBlocked: true,
+			wantStatus:  "BLOCKED",
+		},
+		{
+			name:       "fail event fails",
+			stream:     event("fail", "example.com/module/alpha", "TestAlpha"),
+			wantErr:    true,
+			wantStatus: "FAILED",
+		},
+		{
+			name:       "non-zero exit with no fail event (compile error) still fails",
+			exitCode:   2,
+			stream:     "",
+			wantErr:    true,
+			wantStatus: "FAILED",
+		},
+		{
+			name:       "package-level no-test-files skip stays benign",
+			stream:     event("skip", "example.com/module/empty", ""),
+			wantStatus: "PASSED",
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			report, err := ReportGoTestRun("go test -json ./...", testCase.exitCode, testCase.stream, "")
+			if (err != nil) != testCase.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, testCase.wantErr)
+			}
+			if errors.Is(err, ErrVerifierBlocked) != testCase.wantBlocked {
+				t.Fatalf("errors.Is(err, ErrVerifierBlocked) = %v, want %v (err: %v)", !testCase.wantBlocked, testCase.wantBlocked, err)
+			}
+			if !strings.Contains(report, testCase.wantStatus) {
+				t.Fatalf("report missing %s label: %q", testCase.wantStatus, report)
+			}
+		})
+	}
+}
+
+// The verifier wrapper must stay a pure delegation: after the refactor that
+// exposed ReportGoTestRun, runVerifierCommand's `go test -json` path (which
+// reaches reportGoTestVerifier) must produce byte-identical reports and
+// identical errors to the shared judgement.
+func TestReportGoTestVerifierDelegatesToReportGoTestRun(t *testing.T) {
+	command := []string{"go", "test", "-json", "./..."}
+	results := []terrarium.CommandResult{
+		{ExitCode: 0, Stdout: event("pass", "example.com/module/alpha", "TestAlpha")},
+		{ExitCode: 0, Stdout: event("skip", "example.com/module/alpha", "TestNeedsDocker")},
+		{ExitCode: 1, Stdout: event("fail", "example.com/module/alpha", "TestAlpha")},
+		{ExitCode: 2, Stdout: "", Stderr: "compile error"},
+	}
+	for _, result := range results {
+		wrapperReport, wrapperErr := reportGoTestVerifier(command, result)
+		sharedReport, sharedErr := ReportGoTestRun(strings.Join(command, " "), result.ExitCode, result.Stdout, result.Stderr)
+		if wrapperReport != sharedReport {
+			t.Fatalf("reports diverge:\nwrapper: %q\nshared:  %q", wrapperReport, sharedReport)
+		}
+		if fmt.Sprint(wrapperErr) != fmt.Sprint(sharedErr) {
+			t.Fatalf("errors diverge: wrapper %v, shared %v", wrapperErr, sharedErr)
+		}
+		if errors.Is(wrapperErr, ErrVerifierBlocked) != errors.Is(sharedErr, ErrVerifierBlocked) {
+			t.Fatalf("blocked sentinel diverges: wrapper %v, shared %v", wrapperErr, sharedErr)
+		}
+	}
+}
+
 // The blocked verdict must render its own label so a human reading the
 // sequence log can never mistake an unverified run for a green or a red one.
-func TestFormatGoTestVerifierReportBlockedLabel(t *testing.T) {
+func TestFormatGoTestRunReportBlockedLabel(t *testing.T) {
 	outcome := goTestOutcome{
 		Verdict:      goTestVerdictBlocked,
 		SkippedTests: []string{"example.com/module/alpha.TestNeedsDocker"},
 	}
-	report := formatGoTestVerifierReport([]string{"go", "test", "-json", "./..."}, terrarium.CommandResult{}, outcome)
+	report := formatGoTestRunReport("go test -json ./...", 0, "", "", outcome)
 	if !strings.Contains(report, "BLOCKED") {
 		t.Fatalf("report missing BLOCKED label: %q", report)
 	}

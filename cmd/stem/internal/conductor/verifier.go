@@ -122,31 +122,17 @@ func runVerifierCommand(ctx context.Context, providerName, workspacePath string,
 }
 
 // reportGoTestVerifier derives the verdict of a `go test -json` verifier step
-// from the parsed event stream instead of the exit code alone:
-//
-//   - a fail event → failed (an error, as today);
-//   - a non-zero exit with no fail event (for example a compile error) →
-//     failed on the exit code, as today;
-//   - a skip event carrying a test name → blocked: the step ran but did not
-//     verify everything it was asked to, so it returns an error wrapping
-//     ErrVerifierBlocked with a message that is unmistakably not a pass and
-//     not a code failure — the sequence halts either way;
-//   - otherwise → passed.
+// through ReportGoTestRun — the one shared skip-aware judgement — instead of
+// the exit code alone. The only behaviour this wrapper adds is the sequence
+// runner's convention of echoing a non-passing report to stderr, because the
+// runner prints a step's output only on success and for a verifier the
+// non-passing output is the point.
 func reportGoTestVerifier(command []string, result terrarium.CommandResult) (string, error) {
-	outcome := evaluateGoTestJSONStream(result.Stdout)
-	report := formatGoTestVerifierReport(command, result, outcome)
-	switch {
-	case outcome.Verdict == goTestVerdictFailed:
+	report, err := ReportGoTestRun(strings.Join(command, " "), result.ExitCode, result.Stdout, result.Stderr)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, report)
-		return report, fmt.Errorf("verifier command %q failed: %d test(s) or package(s) failed", strings.Join(command, " "), len(outcome.FailedSubjects))
-	case result.ExitCode != 0:
-		fmt.Fprintln(os.Stderr, report)
-		return report, fmt.Errorf("verifier command %q failed (exit %d)", strings.Join(command, " "), result.ExitCode)
-	case outcome.Verdict == goTestVerdictBlocked:
-		fmt.Fprintln(os.Stderr, report)
-		return report, fmt.Errorf("verifier command %q is %w: %d applicable test(s) skipped and were not verified", strings.Join(command, " "), ErrVerifierBlocked, len(outcome.SkippedTests))
 	}
-	return report, nil
+	return report, err
 }
 
 // formatVerifierReport renders a compact pass/fail report with the command's
@@ -161,39 +147,6 @@ func formatVerifierReport(command []string, result terrarium.CommandResult) stri
 	fmt.Fprintf(&b, "🔬 %s — %s (exit %d)", strings.Join(command, " "), status, result.ExitCode)
 	if out := strings.TrimSpace(result.Stdout); out != "" {
 		fmt.Fprintf(&b, "\n%s", out)
-	}
-	if errOut := strings.TrimSpace(result.Stderr); errOut != "" {
-		fmt.Fprintf(&b, "\n%s", errOut)
-	}
-	return b.String()
-}
-
-// formatGoTestVerifierReport renders the skip-aware verdict of a
-// `go test -json` step: PASSED, FAILED, or BLOCKED. Instead of echoing the
-// raw event stream — one JSON object per output line — it names the failing
-// and the skipped (unverified) subjects, and includes the full stream only
-// when the step failed, where the output is the point.
-func formatGoTestVerifierReport(command []string, result terrarium.CommandResult, outcome goTestOutcome) string {
-	status := "PASSED"
-	switch {
-	case outcome.Verdict == goTestVerdictFailed || result.ExitCode != 0:
-		status = "FAILED"
-	case outcome.Verdict == goTestVerdictBlocked:
-		status = "BLOCKED"
-	}
-
-	var b strings.Builder
-	fmt.Fprintf(&b, "🔬 %s — %s (exit %d)", strings.Join(command, " "), status, result.ExitCode)
-	if len(outcome.FailedSubjects) > 0 {
-		fmt.Fprintf(&b, "\nfailed: %s", strings.Join(outcome.FailedSubjects, ", "))
-	}
-	if len(outcome.SkippedTests) > 0 {
-		fmt.Fprintf(&b, "\nskipped and NOT verified: %s", strings.Join(outcome.SkippedTests, ", "))
-	}
-	if status == "FAILED" {
-		if out := strings.TrimSpace(result.Stdout); out != "" {
-			fmt.Fprintf(&b, "\n%s", out)
-		}
 	}
 	if errOut := strings.TrimSpace(result.Stderr); errOut != "" {
 		fmt.Fprintf(&b, "\n%s", errOut)

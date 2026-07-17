@@ -89,6 +89,8 @@ func main() {
 		runRepoMapCmd(os.Args[2:])
 	case "sequence":
 		runSequenceCmd(ctx, os.Args[2:])
+	case "verdict":
+		runVerdictCmd(os.Args[2:])
 	case "sprout":
 		runSproutCmd(ctx, os.Args[2:])
 	case "passthrough":
@@ -132,6 +134,7 @@ func printUsage() {
 	fmt.Println("  memory  Store, search, and export project memory")
 	fmt.Println("  repomap Generate the active repository map")
 	fmt.Println("  sequence Run or list YAML task sequences")
+	fmt.Println("  verdict Judge a completed test run, skip-aware")
 	fmt.Println("  sprout  Delegate a one-shot task to an autonomous Tendril in a terrarium")
 	fmt.Println("  passthrough Run one bounded command in a network-sealed terrarium")
 	fmt.Println("  git     Commit a substrate's workspace under its configured commit identity")
