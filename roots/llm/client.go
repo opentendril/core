@@ -162,6 +162,16 @@ func (c *Client) ListModels(ctx context.Context) ([]string, error) {
 }
 
 func (c *Client) CallStream(ctx context.Context, messages []Message, tokenChan chan<- string) (string, error) {
+	// Closing the channel is this function's job, on every path. It used to
+	// close only where it streamed or exhausted its candidates, so returning
+	// early — a missing model, an absent key — left a caller ranging over the
+	// channel blocked forever. A caller cannot close it itself without racing
+	// the closes below, so the guarantee has to live here: return from
+	// CallStream and the channel is closed.
+	if tokenChan != nil {
+		defer close(tokenChan)
+	}
+
 	if c == nil {
 		return "", fmt.Errorf("llm client is nil")
 	}
@@ -188,16 +198,9 @@ func (c *Client) CallStream(ctx context.Context, messages []Message, tokenChan c
 	for _, baseURL := range candidates {
 		content, err := c.doCall(ctx, baseURL, messages, tokenChan != nil, tokenChan)
 		if err == nil {
-			if tokenChan != nil {
-				close(tokenChan)
-			}
 			return content, nil
 		}
 		lastErr = err
-	}
-
-	if tokenChan != nil {
-		close(tokenChan)
 	}
 
 	if lastErr == nil {

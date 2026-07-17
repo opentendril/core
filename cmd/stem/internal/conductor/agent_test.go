@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/opentendril/core/cmd/stem/internal/eventbus"
 	"github.com/opentendril/core/roots/llm"
 )
 
@@ -391,5 +392,60 @@ steps:
 	}
 	if wsIdx != -1 && sysIdx != -1 && sysIdx > wsIdx {
 		t.Errorf("expected system sequence (idx %d) to have higher priority than workspace sequence (idx %d)", sysIdx, wsIdx)
+	}
+}
+
+// A bus is not decoration: the agent streams only when it has one, so a nil bus
+// makes a run emit nothing at all — no tokens, no reasoning, no way to tell a
+// working sprout from a stuck one except a wall clock. Both sprout execution
+// paths passed nil, so this pins the behaviour the wiring depends on.
+func TestAgentPublishesProgressWhenGivenABus(t *testing.T) {
+	workspace := t.TempDir()
+	client := &fakeLLM{response: "<thought>considering it</thought>\ndone"}
+	session := &fakeSession{tools: []ToolDefinition{{Name: "readFile", Description: "read a file"}}}
+	bus := eventbus.New()
+	defer bus.Shutdown()
+
+	agent, err := newAgent(context.Background(), workspace, workspace, "workspace-agent", client, session, bus, "step-1")
+	if err != nil {
+		t.Fatalf("newAgent returned error: %v", err)
+	}
+	if _, err := agent.Run(context.Background(), "do the thing"); err != nil {
+		t.Fatalf("agent.Run returned error: %v", err)
+	}
+
+	// No sleep: the turn waits for its tokens to be published before it
+	// returns, so the events are all here by now. A sleep would mean the
+	// delivery is racy and the liveness signal untrustworthy.
+	history := bus.History(100)
+	if len(history) == 0 {
+		t.Fatalf("the run published nothing; a supervisor would have nothing to observe")
+	}
+
+	published := map[eventbus.EventType]int{}
+	for _, event := range history {
+		published[event.Type]++
+	}
+	if published[eventbus.EventStreamToken] == 0 {
+		t.Errorf("no %s events: the agent did not stream, so liveness is unobservable (got %v)", eventbus.EventStreamToken, published)
+	}
+	if published[eventbus.EventThoughtBranch] == 0 {
+		t.Errorf("no %s events: reasoning is unobservable (got %v)", eventbus.EventThoughtBranch, published)
+	}
+}
+
+// The other half of the contract: without a bus the agent takes the blocking
+// path and publishes nothing. This documents why nil was never a neutral
+// default.
+func TestAgentWithoutABusIsSilent(t *testing.T) {
+	workspace := t.TempDir()
+	client := &fakeLLM{response: "done"}
+	session := &fakeSession{tools: []ToolDefinition{{Name: "readFile", Description: "read a file"}}}
+	agent, err := newAgent(context.Background(), workspace, workspace, "workspace-agent", client, session, nil, "")
+	if err != nil {
+		t.Fatalf("newAgent returned error: %v", err)
+	}
+	if _, err := agent.Run(context.Background(), "do the thing"); err != nil {
+		t.Fatalf("agent.Run returned error: %v", err)
 	}
 }

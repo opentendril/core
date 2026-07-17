@@ -1747,7 +1747,11 @@ func runSequenceSproutAtPath(ctx context.Context, orch *DockerOrchestrator, task
 	}
 	defer session.Close()
 
-	agent, err := newAgentFn(ctx, mountPath, sourcePath, orch.Genotype, orch.resolveLLMClient(), session, nil, "")
+	// The orchestrator's bus, not nil: the agent streams only when it has one
+	// to publish to, so passing nil made every sequence sprout step — a
+	// delegated Codex run among them — silent for its whole duration, leaving a
+	// wall clock as the only way to judge it.
+	agent, err := newAgentFn(ctx, mountPath, sourcePath, orch.Genotype, orch.resolveLLMClient(), session, orch.EventBus, orch.StepID)
 	if err != nil {
 		return result, err
 	}

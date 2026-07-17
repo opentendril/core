@@ -185,7 +185,15 @@ func (a *Agent) Run(ctx context.Context, taskPrompt string) (agentResult, error)
 
 		if a.eventBus != nil {
 			tokenChan = make(chan string, 100)
+			// Publishing happens on another goroutine, so the turn must wait
+			// for it to drain before moving on. Without the wait a token could
+			// be published after the events that conclude the run, or dropped
+			// entirely when a short-lived caller shuts the bus down — which
+			// makes the liveness signal exactly as untrustworthy as no signal.
+			// CallStream closes the channel on every path, so this cannot hang.
+			tokensPublished := make(chan struct{})
 			go func() {
+				defer close(tokensPublished)
 				for token := range tokenChan {
 					a.eventBus.Publish(eventbus.Event{
 						Type:   eventbus.EventStreamToken,
@@ -197,6 +205,7 @@ func (a *Agent) Run(ctx context.Context, taskPrompt string) (agentResult, error)
 				}
 			}()
 			response, err = a.client.CallStream(ctx, a.messages, tokenChan)
+			<-tokensPublished
 		} else {
 			response, err = a.client.Call(ctx, a.messages)
 		}
