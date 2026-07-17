@@ -66,14 +66,50 @@ func TestDockerProviderCreateHonorsTerrariumSpec(t *testing.T) {
 		"-v /tmp/workspace:/app",
 		"-v /tmp/cache:/cache:ro",
 		"--env-file " + envFile,
-		"-e FIRST=1",
-		"-e SECOND=2",
+		"-e FIRST",
+		"-e SECOND",
 		"-w /app",
 		"opentendril-go:latest",
 	} {
 		if !strings.Contains(logOutput, needle) {
 			t.Fatalf("docker run args missing %q in log %q", needle, logOutput)
 		}
+	}
+
+	// The values must never appear among the arguments. Process arguments are
+	// world readable through /proc, and these arguments are echoed to stderr on
+	// every terrarium start — a spec carrying a token would leak it to any
+	// local user and into terminal scrollback. Docker reads a valueless -e from
+	// the client environment instead.
+	for _, forbidden := range []string{"FIRST=1", "SECOND=2"} {
+		if strings.Contains(logOutput, forbidden) {
+			t.Fatalf("environment VALUE %q reached the docker command line: %q", forbidden, logOutput)
+		}
+	}
+}
+
+// The values still have to arrive, or the split above would be secure and
+// useless: the fake docker reports what it actually received in its own
+// environment.
+func TestDockerProviderPassesEnvironmentValuesOutOfBandOfArguments(t *testing.T) {
+	fake := installFakeDocker(t)
+	t.Setenv("PATH", fake.binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_DOCKER_ENV_LOG", filepath.Join(t.TempDir(), "docker.env.log"))
+
+	provider := NewDockerProvider()
+	terrariumInstance, err := provider.Create(context.Background(), TerrariumSpec{
+		Image:       "opentendril-go:latest",
+		WorkingDir:  "/app",
+		Environment: map[string]string{"SECRET_TOKEN": "s3cr3t-value"},
+	})
+	if err != nil {
+		t.Fatalf("provider.Create returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = terrariumInstance.Stop(context.Background()) })
+
+	envLog := waitForLogContent(t, os.Getenv("FAKE_DOCKER_ENV_LOG"), "SECRET_TOKEN=")
+	if !strings.Contains(envLog, "SECRET_TOKEN=s3cr3t-value") {
+		t.Fatalf("docker client did not receive the value in its environment: %q", envLog)
 	}
 }
 
@@ -274,6 +310,12 @@ func installFakeDocker(t *testing.T) fakeDockerPaths {
 set -eu
 
 printf '%s\n' "$*" >> "${FAKE_DOCKER_LOG}"
+
+# Records what the real docker client would resolve a valueless -e from, so a
+# test can prove the values arrive without ever touching the argument list.
+if [ -n "${FAKE_DOCKER_ENV_LOG:-}" ]; then
+  env >> "${FAKE_DOCKER_ENV_LOG}"
+fi
 
 cmd="${1:-}"
 if [ "$#" -gt 0 ]; then
@@ -781,13 +823,22 @@ func testProviderCreateHonorsTerrariumSpec(t *testing.T, provider TerrariumProvi
 		"-v /tmp/workspace:/app",
 		"-v /tmp/cache:/cache:ro",
 		"--env-file " + envFile,
-		"-e FIRST=1",
-		"-e SECOND=2",
+		"-e FIRST",
+		"-e SECOND",
 		"-w /app",
 		"opentendril-go:latest",
 	}, extraNeedles...) {
 		if !strings.Contains(logOutput, needle) {
 			t.Fatalf("docker run args missing %q in log %q", needle, logOutput)
+		}
+	}
+
+	// Applies to every provider routed through this helper: a value on the
+	// command line is readable through /proc for the container's lifetime and
+	// is echoed to stderr on start, so a spec carrying a token would leak it.
+	for _, forbidden := range []string{"FIRST=1", "SECOND=2"} {
+		if strings.Contains(logOutput, forbidden) {
+			t.Fatalf("environment VALUE %q reached the docker command line: %q", forbidden, logOutput)
 		}
 	}
 }

@@ -118,9 +118,7 @@ func createDockerTerrarium(ctx context.Context, provider TerrariumProvider, spec
 		args = append(args, "--env-file", envFile)
 	}
 
-	for _, key := range sortedKeys(spec.Environment) {
-		args = append(args, "-e", fmt.Sprintf("%s=%s", key, spec.Environment[key]))
-	}
+	args = append(args, environmentFlags(spec.Environment)...)
 
 	if workingDir := strings.TrimSpace(spec.WorkingDir); workingDir != "" {
 		args = append(args, "-w", workingDir)
@@ -129,9 +127,12 @@ func createDockerTerrarium(ctx context.Context, provider TerrariumProvider, spec
 	args = append(args, spec.Image)
 	args = append(args, spec.Command...)
 
+	// Safe to print in full only because environmentFlags keeps values out of
+	// args entirely — see the note there.
 	fmt.Fprintf(os.Stderr, "🚀 Executing docker: docker %s\n", strings.Join(args, " "))
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Env = commandEnvironment(spec.Environment)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("create terrarium stdin pipe: %w", err)
@@ -390,9 +391,7 @@ func (s *dockerTerrarium) Run(ctx context.Context, spec CommandSpec) (CommandRes
 	} else if s.workingDir != "" {
 		args = append(args, "-w", s.workingDir)
 	}
-	for _, key := range sortedKeys(spec.Environment) {
-		args = append(args, "-e", fmt.Sprintf("%s=%s", key, spec.Environment[key]))
-	}
+	args = append(args, environmentFlags(spec.Environment)...)
 	args = append(args, s.id)
 	args = append(args, spec.Command...)
 
@@ -409,6 +408,7 @@ func (s *dockerTerrarium) Run(ctx context.Context, spec CommandSpec) (CommandRes
 		stdout.Reset()
 		stderr.Reset()
 		cmd := exec.CommandContext(runCtx, "docker", args...)
+		cmd.Env = commandEnvironment(spec.Environment)
 		if len(spec.Stdin) > 0 {
 			cmd.Stdin = bytes.NewReader(spec.Stdin)
 		}
@@ -672,6 +672,45 @@ func (b *lockedBuffer) String() string {
 // retry: createDockerTerrarium returns before `docker run` has registered the
 // container, so an immediate exec or cp (CopyIn for spec.Files) can race the
 // start. The command has not run in the not-ready case, so retrying is safe.
+// environmentFlags renders a terrarium's environment as `-e KEY` flags — the
+// name only, never `KEY=value`.
+//
+// Docker resolves a valueless -e from its own client environment, which
+// commandEnvironment supplies. The value therefore never reaches the docker
+// command line, and that matters twice over: process arguments are world
+// readable through /proc for the container's lifetime, so any local user could
+// read a GitHub token or an inference API key out of `ps`; and the arguments
+// are echoed to stderr when a terrarium starts, which put those same secrets
+// into terminal scrollback and into anything capturing that output.
+//
+// Keep the split. Rendering `KEY=value` here would reintroduce both leaks at
+// once, and the echo above would broadcast them.
+func environmentFlags(environment map[string]string) []string {
+	flags := make([]string, 0, len(environment)*2)
+	for _, key := range sortedKeys(environment) {
+		flags = append(flags, "-e", key)
+	}
+	return flags
+}
+
+// commandEnvironment is the other half of environmentFlags: the values, handed
+// to the docker client through its environment rather than its arguments.
+//
+// The process environment is inherited so the client keeps DOCKER_HOST, PATH
+// and the rest. Terrarium values are appended last because os/exec resolves a
+// duplicate key to its final occurrence, so the spec wins over an inherited
+// variable of the same name.
+func commandEnvironment(environment map[string]string) []string {
+	if len(environment) == 0 {
+		return nil
+	}
+	values := os.Environ()
+	for _, key := range sortedKeys(environment) {
+		values = append(values, fmt.Sprintf("%s=%s", key, environment[key]))
+	}
+	return values
+}
+
 func runDockerCommandWithStartGrace(ctx context.Context, args ...string) (string, string, error) {
 	startDeadline := time.Now().Add(containerStartGrace)
 	for {
