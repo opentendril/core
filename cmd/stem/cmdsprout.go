@@ -15,6 +15,7 @@ import (
 
 	"github.com/opentendril/core/cmd/stem/internal/conductor"
 	"github.com/opentendril/core/cmd/stem/internal/core"
+	"github.com/opentendril/core/cmd/stem/internal/eventbus"
 	"github.com/opentendril/core/cmd/stem/internal/historydb"
 	"github.com/opentendril/core/cmd/stem/internal/session"
 )
@@ -184,6 +185,18 @@ func sproutOperations(history *historydb.Store) core.SproutOperations {
 		Run: func(ctx context.Context, spec core.SproutSpec) (string, error) {
 			wiring := resolveSproutSubstrateWiring(spec, substratesConfig)
 
+			// A command-line sprout gets its own bus. The agent streams only
+			// when it has one to publish to, so without this the run emitted
+			// nothing for its whole duration — no tokens, no reasoning, no
+			// lifecycle — and a wall clock was the only thing left to judge it
+			// by. The daemon has always had a bus; this path never did.
+			//
+			// Nothing subscribes here, and it is still worth attaching: the bus
+			// retains its own history, so the run becomes observable rather
+			// than merely quiet.
+			bus := eventbus.New()
+			defer bus.Shutdown()
+
 			log.Printf("[Sprout] Delegating transcript to Tendril step %s: %s (Substrate: %s, URL: %s)", spec.StepID, spec.Transcript, wiring.Substrate, wiring.URL)
 			orch := &conductor.DockerOrchestrator{
 				Substrate:       wiring.Substrate,
@@ -194,6 +207,7 @@ func sproutOperations(history *historydb.Store) core.SproutOperations {
 				Provider:        spec.Provider,
 				Model:           spec.Model,
 				Genotype:        spec.Genotype,
+				EventBus:        bus,
 			}
 
 			run := historydb.SproutRun{
