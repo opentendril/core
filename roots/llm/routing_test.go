@@ -106,21 +106,21 @@ func TestModelTierResolution(t *testing.T) {
 			wantMode  Mode
 			wantEndpt string
 		}{
-			{name: "anthropic premium cap", provider: "anthropic", key: "ANTHROPIC_API_KEY", tier: TierPremium, wantProv: "anthropic", wantModel: "claude-3-5-haiku", wantMode: ModeAnthropic, wantEndpt: "/v1/messages"},
-			{name: "anthropic standard cap", provider: "anthropic", key: "ANTHROPIC_API_KEY", tier: TierStandard, wantProv: "anthropic", wantModel: "claude-3-5-haiku", wantMode: ModeAnthropic, wantEndpt: "/v1/messages"},
-			{name: "anthropic cheapest cap", provider: "anthropic", key: "ANTHROPIC_API_KEY", tier: TierCheapest, wantProv: "anthropic", wantModel: "claude-3-5-haiku", wantMode: ModeAnthropic, wantEndpt: "/v1/messages"},
-			{name: "openai premium cap", provider: "openai", key: "OPENAI_API_KEY", tier: TierPremium, wantProv: "openai", wantModel: "gpt-4o-mini", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
-			{name: "openai standard cap", provider: "openai", key: "OPENAI_API_KEY", tier: TierStandard, wantProv: "openai", wantModel: "gpt-4o-mini", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
-			{name: "openai cheapest cap", provider: "openai", key: "OPENAI_API_KEY", tier: TierCheapest, wantProv: "openai", wantModel: "gpt-4o-mini", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
-			{name: "google premium cap", provider: "google", key: "GOOGLE_API_KEY", tier: TierPremium, wantProv: "google", wantModel: "gemini-1.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
-			{name: "google standard cap", provider: "google", key: "GOOGLE_API_KEY", tier: TierStandard, wantProv: "google", wantModel: "gemini-1.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
-			{name: "google cheapest cap", provider: "google", key: "GOOGLE_API_KEY", tier: TierCheapest, wantProv: "google", wantModel: "gemini-1.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
+			{name: "anthropic premium cap", provider: "anthropic", key: "ANTHROPIC_API_KEY", tier: TierPremium, wantProv: "anthropic", wantModel: "claude-haiku-4-5", wantMode: ModeAnthropic, wantEndpt: "/v1/messages"},
+			{name: "anthropic standard cap", provider: "anthropic", key: "ANTHROPIC_API_KEY", tier: TierStandard, wantProv: "anthropic", wantModel: "claude-haiku-4-5", wantMode: ModeAnthropic, wantEndpt: "/v1/messages"},
+			{name: "anthropic cheapest cap", provider: "anthropic", key: "ANTHROPIC_API_KEY", tier: TierCheapest, wantProv: "anthropic", wantModel: "claude-haiku-4-5", wantMode: ModeAnthropic, wantEndpt: "/v1/messages"},
+			{name: "openai premium cap", provider: "openai", key: "OPENAI_API_KEY", tier: TierPremium, wantProv: "openai", wantModel: "gpt-5.6-luna", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
+			{name: "openai standard cap", provider: "openai", key: "OPENAI_API_KEY", tier: TierStandard, wantProv: "openai", wantModel: "gpt-5.6-luna", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
+			{name: "openai cheapest cap", provider: "openai", key: "OPENAI_API_KEY", tier: TierCheapest, wantProv: "openai", wantModel: "gpt-5.6-luna", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
+			{name: "google premium cap", provider: "google", key: "GOOGLE_API_KEY", tier: TierPremium, wantProv: "google", wantModel: "gemini-3.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
+			{name: "google standard cap", provider: "google", key: "GOOGLE_API_KEY", tier: TierStandard, wantProv: "google", wantModel: "gemini-3.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
+			{name: "google cheapest cap", provider: "google", key: "GOOGLE_API_KEY", tier: TierCheapest, wantProv: "google", wantModel: "gemini-3.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
 			{name: "grok premium cap uses local lower cost", provider: "grok", key: "GROK_API_KEY", tier: TierPremium, wantProv: "local", wantModel: "llama3.2", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
 			{name: "grok standard cap uses local lower cost", provider: "grok", key: "GROK_API_KEY", tier: TierStandard, wantProv: "local", wantModel: "llama3.2", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
 			{name: "grok cheapest cap uses local lower cost", provider: "grok", key: "GROK_API_KEY", tier: TierCheapest, wantProv: "local", wantModel: "llama3.2", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
-			{name: "openrouter premium cap", provider: "openrouter", key: "OPENROUTER_API_KEY", tier: TierPremium, wantProv: "openrouter", wantModel: "google/gemini-1.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
-			{name: "openrouter standard cap", provider: "openrouter", key: "OPENROUTER_API_KEY", tier: TierStandard, wantProv: "openrouter", wantModel: "google/gemini-1.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
-			{name: "openrouter cheapest cap", provider: "openrouter", key: "OPENROUTER_API_KEY", tier: TierCheapest, wantProv: "openrouter", wantModel: "google/gemini-1.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
+			{name: "openrouter premium cap", provider: "openrouter", key: "OPENROUTER_API_KEY", tier: TierPremium, wantProv: "openrouter", wantModel: "google/gemini-2.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
+			{name: "openrouter standard cap", provider: "openrouter", key: "OPENROUTER_API_KEY", tier: TierStandard, wantProv: "openrouter", wantModel: "google/gemini-2.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
+			{name: "openrouter cheapest cap", provider: "openrouter", key: "OPENROUTER_API_KEY", tier: TierCheapest, wantProv: "openrouter", wantModel: "google/gemini-2.5-flash", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
 			{name: "local premium cap", provider: "local", tier: TierPremium, wantProv: "local", wantModel: "llama3.2", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
 			{name: "local standard cap", provider: "local", tier: TierStandard, wantProv: "local", wantModel: "llama3.2", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
 			{name: "local cheapest cap", provider: "local", tier: TierCheapest, wantProv: "local", wantModel: "llama3.2", wantMode: ModeOpenAIish, wantEndpt: "/chat/completions"},
@@ -189,7 +189,7 @@ func TestAnthropicPromptCachingPayload(t *testing.T) {
 	client := NewClient(ProviderSpec{
 		Provider:    "anthropic",
 		BaseURL:     server.URL,
-		Model:       "claude-sonnet-4-6",
+		Model:       "claude-sonnet-5",
 		APIKey:      "test-key",
 		Endpoint:    "/v1/messages",
 		Mode:        ModeAnthropic,
@@ -218,8 +218,8 @@ func TestAnthropicPromptCachingPayload(t *testing.T) {
 		t.Fatalf("anthropic-version header = %q, want %q", got, "2023-06-01")
 	}
 
-	if captured.Request.Model != "claude-sonnet-4-6" {
-		t.Fatalf("model = %q, want %q", captured.Request.Model, "claude-sonnet-4-6")
+	if captured.Request.Model != "claude-sonnet-5" {
+		t.Fatalf("model = %q, want %q", captured.Request.Model, "claude-sonnet-5")
 	}
 	if captured.Request.MaxTokens != 2048 {
 		t.Fatalf("max_tokens = %d, want 2048", captured.Request.MaxTokens)
