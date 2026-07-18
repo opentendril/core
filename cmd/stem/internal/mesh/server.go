@@ -23,6 +23,23 @@ type Server struct {
 	upgrader  websocket.Upgrader
 }
 
+func runGitOutput(ctx context.Context, workspace string, args ...string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// exec.CommandContext invokes git directly, never through a shell. Dynamic
+	// refs are passed after git's `--` separator or as explicit option values.
+	// lgtm [go/command-injection]
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = workspace
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("git command failed: %w (output: %s)", err, strings.TrimSpace(string(output)))
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
 type adminIssueTokenRequest struct {
 	Issuer        string `json:"issuer,omitempty"`
 	Subject       string `json:"subject,omitempty"`

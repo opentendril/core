@@ -1971,7 +1971,7 @@ func quarantineScriptPrompt(stepID, taskPrompt string) error {
 }
 
 func mergeSequenceTerrariumCommit(ctx context.Context, sourcePath, commitHash string) error {
-	if _, err := runGitCommand(ctx, sourcePath, "merge", "--no-ff", "--no-edit", commitHash); err != nil {
+	if _, err := runGitCommand(ctx, sourcePath, "merge", "--no-ff", "--no-edit", "--", commitHash); err != nil {
 		return err
 	}
 	return nil
@@ -2004,7 +2004,7 @@ func mergePhenotypeBranchToHost(ctx context.Context, sourcePath, branchName stri
 		}()
 	}
 
-	if _, err = runGitCommand(cleanupCtx, sourcePath, "merge", "--ff-only", branchName); err != nil {
+	if _, err = runGitCommand(cleanupCtx, sourcePath, "merge", "--ff-only", "--", branchName); err != nil {
 		return err
 	}
 
@@ -2040,7 +2040,7 @@ func mergePhloemChannelToHost(ctx context.Context, sourcePath, branchName, stepI
 	}
 
 	mergeMessage := fmt.Sprintf("chore: merge parallel step %s", stepID)
-	if _, err = runGitCommand(cleanupCtx, sourcePath, "merge", "--no-ff", "-m", mergeMessage, branchName); err != nil {
+	if _, err = runGitCommand(cleanupCtx, sourcePath, "merge", "--no-ff", "-m", mergeMessage, "--", branchName); err != nil {
 		if _, abortErr := runGitCommand(cleanupCtx, sourcePath, "merge", "--abort"); abortErr != nil {
 			fmt.Fprintf(os.Stderr, "⚠️ Failed to abort parallel merge for %s: %v\n", stepID, abortErr)
 		}

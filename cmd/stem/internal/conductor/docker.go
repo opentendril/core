@@ -1010,6 +1010,10 @@ func runGitCommandWithEnv(ctx context.Context, dir string, extraEnv []string, ar
 		ctx = context.Background()
 	}
 
+	// exec.CommandContext invokes git directly, never through a shell. All
+	// caller-controlled refs are passed after git's `--` separator or as the
+	// value of an explicit option such as `-m`; they cannot become shell code.
+	// lgtm [go/command-injection]
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
 	if len(extraEnv) > 0 {
@@ -1531,7 +1535,7 @@ func pushTerrariumCommit(ctx context.Context, mountPath, branch string, cred Res
 	if authErr != nil {
 		return authErr
 	}
-	if _, err := runGitCommandWithEnv(ctx, mountPath, pushEnv, "push", "origin", "HEAD:"+targetBranch); err != nil {
+	if _, err := runGitCommandWithEnv(ctx, mountPath, pushEnv, "push", "origin", "--", "HEAD:refs/heads/"+targetBranch); err != nil {
 		return err
 	}
 

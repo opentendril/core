@@ -221,7 +221,7 @@ func normalizeGraftEndpoint(rawURL string) (string, error) {
 }
 
 func collectLatestCommitPatch(ctx context.Context, workspace string) (string, string, error) {
-	commitHash, err := runGitOutput(ctx, workspace, "rev-parse", "HEAD")
+	commitHash, err := runGitRevParseHead(ctx, workspace)
 	if err != nil {
 		return "", "", err
 	}
@@ -242,16 +242,16 @@ func collectLatestCommitPatch(ctx context.Context, workspace string) (string, st
 	return commitHash, patch, nil
 }
 
-func runGitOutput(ctx context.Context, workspace string, args ...string) (string, error) {
+func runGitRevParseHead(ctx context.Context, workspace string) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "HEAD")
 	cmd.Dir = workspace
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("git %s failed: %w (output: %s)", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+		return "", fmt.Errorf("git rev-parse HEAD failed: %w (output: %s)", err, strings.TrimSpace(string(output)))
 	}
 
 	return strings.TrimSpace(string(output)), nil
