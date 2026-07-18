@@ -177,7 +177,7 @@ A key requirement for System Sequences is **consistent, parseable output** at ea
   "completed_at": "2026-07-04T03:51:42Z",
   "output_summary": "Posted changelog comment to PR #114 with 6 commit entries.",
   "artifact_urls": [
-    "https://github.com/opentendril/core/pull/114#issuecomment-4878571376"
+    "https://github.com/opentendril/opentendril/pull/114#issuecomment-4878571376"
   ],
   "errors": []
 }
