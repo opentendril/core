@@ -21,10 +21,10 @@ import (
 
 func TestParseOwnerRepo(t *testing.T) {
 	cases := map[string][2]string{
-		"https://github.com/opentendril/opentendril.git":       {"opentendril", "opentendril"},
-		"https://github.com/opentendril/opentendril":           {"opentendril", "opentendril"},
-		"git@github.com:opentendril/opentendril.git":           {"opentendril", "opentendril"},
-		"ssh://git@github.com/opentendril/opentendril.git":     {"opentendril", "opentendril"},
+		"https://github.com/opentendril/opentendril.git":   {"opentendril", "opentendril"},
+		"https://github.com/opentendril/opentendril":       {"opentendril", "opentendril"},
+		"git@github.com:opentendril/opentendril.git":       {"opentendril", "opentendril"},
+		"ssh://git@github.com/opentendril/opentendril.git": {"opentendril", "opentendril"},
 	}
 	for url, want := range cases {
 		owner, repo, err := parseOwnerRepo(url)
