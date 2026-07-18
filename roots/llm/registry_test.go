@@ -31,8 +31,8 @@ func TestSelectBestModelUsesOnlyAvailableProviders(t *testing.T) {
 	if model.Provider != "openai" {
 		t.Fatalf("model.Provider = %q, want %q", model.Provider, "openai")
 	}
-	if model.Name != "gpt-5-mini" {
-		t.Fatalf("model.Name = %q, want %q", model.Name, "gpt-5-mini")
+	if model.Name != "gpt-5.6-luna" {
+		t.Fatalf("model.Name = %q, want %q", model.Name, "gpt-5.6-luna")
 	}
 }
 
@@ -47,8 +47,8 @@ func TestSelectBestModelFiltersCapabilities(t *testing.T) {
 	if !model.HasReasoning {
 		t.Fatalf("selected model %#v without reasoning", model)
 	}
-	if model.Name != "gpt-5-mini" {
-		t.Fatalf("model.Name = %q, want %q", model.Name, "gpt-5-mini")
+	if model.Name != "gpt-5.6-luna" {
+		t.Fatalf("model.Name = %q, want %q", model.Name, "gpt-5.6-luna")
 	}
 }
 
@@ -58,7 +58,7 @@ func TestSelectBestModelFiltersContextAndCost(t *testing.T) {
 
 	// A one-million-token context requirement excludes claude-haiku-4-5
 	// (200K); the cheapest remaining match under a premium cap is the
-	// standard-tier claude-sonnet-4-6.
+	// standard-tier claude-sonnet-5.
 	model, err := SelectBestModel(Capabilities{
 		MinContextSize: 1000000,
 		MaxCostTier:    TierPremium,
@@ -66,8 +66,8 @@ func TestSelectBestModelFiltersContextAndCost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SelectBestModel failed: %v", err)
 	}
-	if model.Provider != "anthropic" || model.Name != "claude-sonnet-4-6" {
-		t.Fatalf("model = %#v, want anthropic claude-sonnet-4-6", model)
+	if model.Provider != "anthropic" || model.Name != "claude-sonnet-5" {
+		t.Fatalf("model = %#v, want anthropic claude-sonnet-5", model)
 	}
 
 	_, err = SelectBestModel(Capabilities{
@@ -97,8 +97,8 @@ func TestFallbackRegistryServesCurrentGenerationAnthropic(t *testing.T) {
 	if model.Provider != "anthropic" {
 		t.Fatalf("model.Provider = %q, want anthropic", model.Provider)
 	}
-	if model.Name != "claude-sonnet-4-6" {
-		t.Fatalf("model.Name = %q, want claude-sonnet-4-6", model.Name)
+	if model.Name != "claude-sonnet-5" {
+		t.Fatalf("model.Name = %q, want claude-sonnet-5", model.Name)
 	}
 
 	for _, entry := range FallbackModels {

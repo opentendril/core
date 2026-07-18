@@ -31,15 +31,15 @@ type ModelDefinition struct {
 // fails at the provider with a model-not-found error.
 var FallbackModels = []ModelDefinition{
 	{Provider: "anthropic", Name: "claude-opus-4-8", Family: ModelFamilyClaude, ContextSize: 1000000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierPremium},
-	{Provider: "anthropic", Name: "claude-sonnet-4-6", Family: ModelFamilyClaude, ContextSize: 1000000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierStandard},
+	{Provider: "anthropic", Name: "claude-sonnet-5", Family: ModelFamilyClaude, ContextSize: 1000000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierStandard},
 	{Provider: "anthropic", Name: "claude-haiku-4-5", Family: ModelFamilyClaude, ContextSize: 200000, HasVision: true, DrivesTools: true, CostTier: TierCheapest},
-	{Provider: "openai", Name: "gpt-5.1", Family: ModelFamilyGPT, ContextSize: 400000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierPremium},
-	{Provider: "openai", Name: "gpt-5-mini", Family: ModelFamilyGPT, ContextSize: 400000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierCheapest},
+	{Provider: "openai", Name: "gpt-5.6-terra", Family: ModelFamilyGPT, ContextSize: 400000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierPremium},
+	{Provider: "openai", Name: "gpt-5.6-luna", Family: ModelFamilyGPT, ContextSize: 400000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierCheapest},
 	{Provider: "google", Name: "gemini-2.5-pro", Family: ModelFamilyGemini, ContextSize: 1000000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierPremium},
-	{Provider: "google", Name: "gemini-2.5-flash", Family: ModelFamilyGemini, ContextSize: 1000000, HasVision: true, DrivesTools: true, CostTier: TierCheapest},
-	{Provider: "grok", Name: "grok-4", Family: ModelFamilyGPT, ContextSize: 256000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierPremium},
+	{Provider: "google", Name: "gemini-3.5-flash", Family: ModelFamilyGemini, ContextSize: 1000000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierCheapest},
+	{Provider: "grok", Name: "grok-4.5", Family: ModelFamilyGPT, ContextSize: 256000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierPremium},
 	{Provider: "openrouter", Name: "google/gemini-2.5-flash", Family: ModelFamilyGemini, ContextSize: 1000000, HasVision: true, DrivesTools: true, CostTier: TierCheapest},
-	{Provider: "opentendril", Name: "anthropic/claude-sonnet-4.6", Family: ModelFamilyClaude, ContextSize: 1000000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierPremium},
+	{Provider: "opentendril", Name: "anthropic/claude-sonnet-5", Family: ModelFamilyClaude, ContextSize: 1000000, HasVision: true, HasReasoning: true, DrivesTools: true, CostTier: TierPremium},
 	{Provider: "nvidia", Name: "meta/llama-3.1-405b-instruct", Family: ModelFamilyLlama, ContextSize: 128000, DrivesTools: true, CostTier: TierPremium},
 	{Provider: "nvidia", Name: "meta/llama-3.3-70b-instruct", Family: ModelFamilyLlama, ContextSize: 128000, DrivesTools: true, CostTier: TierStandard},
 	// Local models: only qwen3.5:9b reliably drives tools (measured). A 3B
