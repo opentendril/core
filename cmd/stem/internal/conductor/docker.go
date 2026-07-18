@@ -1010,8 +1010,12 @@ func runGitCommandWithEnv(ctx context.Context, dir string, extraEnv []string, ar
 		ctx = context.Background()
 	}
 
-	cmdArgs := append([]string{"-C", dir}, args...)
-	cmd := exec.CommandContext(ctx, "git", cmdArgs...)
+	// Start the fixed git executable directly; args are never interpreted by a
+	// shell. Caller-controlled refs are separated with git's `--` marker or
+	// passed as explicit option values such as `-m`.
+	cmd := exec.CommandContext(ctx, "git")
+	cmd.Args = append([]string{"git"}, args...)
+	cmd.Dir = dir
 	if len(extraEnv) > 0 {
 		cmd.Env = append(os.Environ(), extraEnv...)
 	}
@@ -1531,7 +1535,7 @@ func pushTerrariumCommit(ctx context.Context, mountPath, branch string, cred Res
 	if authErr != nil {
 		return authErr
 	}
-	if _, err := runGitCommandWithEnv(ctx, mountPath, pushEnv, "push", "origin", "HEAD:"+targetBranch); err != nil {
+	if _, err := runGitCommandWithEnv(ctx, mountPath, pushEnv, "push", "origin", "--", "HEAD:refs/heads/"+targetBranch); err != nil {
 		return err
 	}
 
