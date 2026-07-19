@@ -603,7 +603,7 @@ func (m *mockCore) Capabilities() []core.Capability {
 			},
 		},
 		{
-			Name:        core.CapSequenceRun,
+			Name:        core.CapSequenceGrow,
 			InputSchema: map[string]any{},
 			Invoke: func(ctx context.Context, input map[string]any) (any, error) {
 				var in core.SequenceRunInput
@@ -614,7 +614,7 @@ func (m *mockCore) Capabilities() []core.Capability {
 			},
 		},
 		{
-			Name:        core.CapSproutRun,
+			Name:        core.CapSproutGrow,
 			InputSchema: map[string]any{},
 			Invoke: func(ctx context.Context, input map[string]any) (any, error) {
 				var in core.SproutRunInput
@@ -1417,24 +1417,24 @@ func TestBehavioralParity_SequenceRun(t *testing.T) {
 		t.Helper()
 		calls := mock.inputsFor("SequenceRun")
 		if len(calls) != 1 {
-			t.Fatalf("%s sequence.run: Core.SequenceRun called %d times, want 1", surface, len(calls))
+			t.Fatalf("%s sequence.grow: Core.SequenceRun called %d times, want 1", surface, len(calls))
 		}
 		if !reflect.DeepEqual(calls[0], wantInput) {
-			t.Errorf("%s sequence.run: Core.SequenceRun received %#v, want %#v", surface, calls[0], wantInput)
+			t.Errorf("%s sequence.grow: Core.SequenceRun received %#v, want %#v", surface, calls[0], wantInput)
 		}
 	}
 
 	// --- REST -----------------------------------------------------------------
 	mock.reset()
-	resp, err := http.Post(server.URL+"/v1/sequences/run", "application/json",
+	resp, err := http.Post(server.URL+"/v1/sequences/grow", "application/json",
 		bytes.NewBufferString(`{"pathOrName":"deploy","provider":"local"}`))
 	if err != nil {
-		t.Fatalf("REST sequence.run: %v", err)
+		t.Fatalf("REST sequence.grow: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("REST sequence.run status = %d, body = %s", resp.StatusCode, body)
+		t.Fatalf("REST sequence.grow status = %d, body = %s", resp.StatusCode, body)
 	}
 	assertOneRunCall(t, "REST", want)
 
@@ -1448,12 +1448,12 @@ func TestBehavioralParity_SequenceRun(t *testing.T) {
 		} `json:"error"`
 	}
 	mock.reset()
-	mcpResp := mcp.ProcessMCPMessage([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"sequence.run","arguments":{"pathOrName":"deploy","provider":"local"}}}`))
+	mcpResp := mcp.ProcessMCPMessage([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"sequence.grow","arguments":{"pathOrName":"deploy","provider":"local"}}}`))
 	if err := json.Unmarshal(mcpResp, &parsed); err != nil {
-		t.Fatalf("parse MCP sequence.run response: %v", err)
+		t.Fatalf("parse MCP sequence.grow response: %v", err)
 	}
 	if parsed.Error != nil || parsed.Result.IsError {
-		t.Fatalf("MCP sequence.run failed: %s", mcpResp)
+		t.Fatalf("MCP sequence.grow failed: %s", mcpResp)
 	}
 	assertOneRunCall(t, "MCP", want)
 
@@ -1471,12 +1471,12 @@ func TestBehavioralParity_SequenceRun(t *testing.T) {
 
 	// --- CLI --------------------------------------------------------------------
 	mock.reset()
-	command, ok := lookupSequenceCommand("run")
+	command, ok := lookupSequenceCommand("grow")
 	if !ok {
 		t.Fatal("CLI: no sequence subcommand registered for \"run\"")
 	}
-	if command.capability != core.CapSequenceRun {
-		t.Fatalf("CLI subcommand \"run\" maps to %q, want %q", command.capability, core.CapSequenceRun)
+	if command.capability != core.CapSequenceGrow {
+		t.Fatalf("CLI subcommand \"grow\" maps to %q, want %q", command.capability, core.CapSequenceGrow)
 	}
 	input, detach, err := parseSequenceArgs(command.capability, []string{"deploy", "--provider", "local"})
 	if err != nil {
@@ -1486,7 +1486,7 @@ func TestBehavioralParity_SequenceRun(t *testing.T) {
 		t.Fatal("CLI parseSequenceArgs: detach must default to false")
 	}
 	if _, err := mock.Invoke(ctx, command.capability, input); err != nil {
-		t.Fatalf("CLI sequence.run: Core.Invoke: %v", err)
+		t.Fatalf("CLI sequence.grow: Core.Invoke: %v", err)
 	}
 	assertOneRunCall(t, "CLI", want)
 
@@ -1523,14 +1523,14 @@ func TestBehavioralParity_SproutRun(t *testing.T) {
 	defer server.Close()
 	ctx := context.Background()
 
-	// sprout.run is a delegated operation-class, and the MCP surface
+	// sprout.grow is a delegated operation-class, and the MCP surface
 	// authorizes those per-invocation against the bind-time subject and the
 	// active grants. Bind a covering grant so this test stays about adapter
 	// translation; the deny-closed governance itself is covered in the
 	// receptors package.
 	gate := &receptors.DelegationGate{Authorizer: core.NewDelegationAuthorizer([]core.DelegationGrant{{
 		Subject:          "parity-agent",
-		OperationClasses: []string{core.CapSproutRun},
+		OperationClasses: []string{core.CapSproutGrow},
 		Substrates:       []string{"/workspaces/core"},
 	}})}
 	mcp = mcp.WithDelegation(gate, "parity-agent")
@@ -1539,24 +1539,24 @@ func TestBehavioralParity_SproutRun(t *testing.T) {
 		t.Helper()
 		calls := mock.inputsFor("SproutRun")
 		if len(calls) != 1 {
-			t.Fatalf("%s sprout.run: Core.SproutRun called %d times, want 1", surface, len(calls))
+			t.Fatalf("%s sprout.grow: Core.SproutRun called %d times, want 1", surface, len(calls))
 		}
 		if !reflect.DeepEqual(calls[0], wantInput) {
-			t.Errorf("%s sprout.run: Core.SproutRun received %#v, want %#v", surface, calls[0], wantInput)
+			t.Errorf("%s sprout.grow: Core.SproutRun received %#v, want %#v", surface, calls[0], wantInput)
 		}
 	}
 
 	// --- REST -----------------------------------------------------------------
 	mock.reset()
-	resp, err := http.Post(server.URL+"/v1/sprouts/run", "application/json",
+	resp, err := http.Post(server.URL+"/v1/sprouts/grow", "application/json",
 		bytes.NewBufferString(`{"transcript":"fix the flaky test","substrate":"/workspaces/core","sessionId":"parity-session-1","origin":"parity-origin"}`))
 	if err != nil {
-		t.Fatalf("REST sprout.run: %v", err)
+		t.Fatalf("REST sprout.grow: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("REST sprout.run status = %d, body = %s", resp.StatusCode, body)
+		t.Fatalf("REST sprout.grow status = %d, body = %s", resp.StatusCode, body)
 	}
 	assertOneRunCall(t, "REST", want)
 
@@ -1570,12 +1570,12 @@ func TestBehavioralParity_SproutRun(t *testing.T) {
 		} `json:"error"`
 	}
 	mock.reset()
-	mcpResp := mcp.ProcessMCPMessage([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"sprout.run","arguments":{"transcript":"fix the flaky test","substrate":"/workspaces/core","sessionId":"parity-session-1","origin":"parity-origin"}}}`))
+	mcpResp := mcp.ProcessMCPMessage([]byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"sprout.grow","arguments":{"transcript":"fix the flaky test","substrate":"/workspaces/core","sessionId":"parity-session-1","origin":"parity-origin"}}}`))
 	if err := json.Unmarshal(mcpResp, &parsed); err != nil {
-		t.Fatalf("parse MCP sprout.run response: %v", err)
+		t.Fatalf("parse MCP sprout.grow response: %v", err)
 	}
 	if parsed.Error != nil || parsed.Result.IsError {
-		t.Fatalf("MCP sprout.run failed: %s", mcpResp)
+		t.Fatalf("MCP sprout.grow failed: %s", mcpResp)
 	}
 	assertOneRunCall(t, "MCP", want)
 
@@ -1596,12 +1596,12 @@ func TestBehavioralParity_SproutRun(t *testing.T) {
 
 	// --- CLI --------------------------------------------------------------------
 	mock.reset()
-	command, ok := lookupSproutCommand("run")
+	command, ok := lookupSproutCommand("grow")
 	if !ok {
 		t.Fatal("CLI: no sprout subcommand registered for \"run\"")
 	}
-	if command.capability != core.CapSproutRun {
-		t.Fatalf("CLI subcommand \"run\" maps to %q, want %q", command.capability, core.CapSproutRun)
+	if command.capability != core.CapSproutGrow {
+		t.Fatalf("CLI subcommand \"grow\" maps to %q, want %q", command.capability, core.CapSproutGrow)
 	}
 	input, detach, err := parseSproutArgs(command.capability, []string{
 		"--substrate", "/workspaces/core",
@@ -1616,7 +1616,7 @@ func TestBehavioralParity_SproutRun(t *testing.T) {
 		t.Fatal("CLI parseSproutArgs: unexpected detach=true for sync parity path")
 	}
 	if _, err := mock.Invoke(ctx, command.capability, input); err != nil {
-		t.Fatalf("CLI sprout.run: Core.Invoke: %v", err)
+		t.Fatalf("CLI sprout.grow: Core.Invoke: %v", err)
 	}
 	assertOneRunCall(t, "CLI", want)
 }

@@ -66,7 +66,7 @@ const sproutRunBody = `{"transcript":"grow","substrate":"core"}`
 func TestSproutRoutesUnchangedWithoutDelegationMarker(t *testing.T) {
 	mux, bus, executed := newDelegationTestHandler(t, nil)
 
-	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/sess-1/sprout/run", strings.NewReader(sproutRunBody))
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/sess-1/sprout/grow", strings.NewReader(sproutRunBody))
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -75,7 +75,7 @@ func TestSproutRoutesUnchangedWithoutDelegationMarker(t *testing.T) {
 	}
 	waitForExecutions(t, executed, 1)
 
-	syncRequest := httptest.NewRequest(http.MethodPost, "/v1/sprouts/run", strings.NewReader(sproutRunBody))
+	syncRequest := httptest.NewRequest(http.MethodPost, "/v1/sprouts/grow", strings.NewReader(sproutRunBody))
 	syncRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(syncRecorder, syncRequest)
 
@@ -100,14 +100,14 @@ func TestSproutRoutesUnchangedWithNilGate(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Register(mux, nil)
 
-	plain := httptest.NewRequest(http.MethodPost, "/v1/sprouts/run", strings.NewReader(sproutRunBody))
+	plain := httptest.NewRequest(http.MethodPost, "/v1/sprouts/grow", strings.NewReader(sproutRunBody))
 	plainRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(plainRecorder, plain)
 	if plainRecorder.Code != http.StatusOK {
 		t.Fatalf("non-delegated status = %d, want 200: %s", plainRecorder.Code, plainRecorder.Body.String())
 	}
 
-	delegated := httptest.NewRequest(http.MethodPost, "/v1/sprouts/run", strings.NewReader(sproutRunBody))
+	delegated := httptest.NewRequest(http.MethodPost, "/v1/sprouts/grow", strings.NewReader(sproutRunBody))
 	delegated.Header.Set(DelegationSubjectHeader, "local-agent")
 	delegatedRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(delegatedRecorder, delegated)
@@ -122,7 +122,7 @@ func TestSproutRoutesUnchangedWithNilGate(t *testing.T) {
 func TestDelegatedAsyncRunDeniedAndAuditedWithoutGrant(t *testing.T) {
 	mux, bus, executed := newDelegationTestHandler(t, nil)
 
-	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/sess-1/sprout/run", strings.NewReader(sproutRunBody))
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/sess-1/sprout/grow", strings.NewReader(sproutRunBody))
 	request.Header.Set(DelegationSubjectHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
@@ -141,24 +141,24 @@ func TestDelegatedAsyncRunDeniedAndAuditedWithoutGrant(t *testing.T) {
 	if event.Type != eventbus.EventDelegationDenied {
 		t.Fatalf("audit event type = %s, want %s", event.Type, eventbus.EventDelegationDenied)
 	}
-	if event.Data["subject"] != "local-agent" || event.Data["operationClass"] != core.CapSproutRun {
+	if event.Data["subject"] != "local-agent" || event.Data["operationClass"] != core.CapSproutGrow {
 		t.Fatalf("audit event data = %v, want the denied request's subject and operation-class", event.Data)
 	}
 }
 
 // TestDelegatedAsyncRunPermittedByMatchingGrant exercises the grant-match
 // path end to end on the detached route: an active grant covering
-// {subject, sprout.run, substrate} lets the invocation detach, and the
+// {subject, sprout.grow, substrate} lets the invocation detach, and the
 // exercise is audited.
 func TestDelegatedAsyncRunPermittedByMatchingGrant(t *testing.T) {
 	grants := []core.DelegationGrant{{
 		Subject:          "local-agent",
-		OperationClasses: []string{core.CapSproutRun},
+		OperationClasses: []string{core.CapSproutGrow},
 		Substrates:       []string{"core"},
 	}}
 	mux, bus, executed := newDelegationTestHandler(t, grants)
 
-	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/sess-1/sprout/run", strings.NewReader(sproutRunBody))
+	request := httptest.NewRequest(http.MethodPost, "/v1/sessions/sess-1/sprout/grow", strings.NewReader(sproutRunBody))
 	request.Header.Set(DelegationSubjectHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
@@ -182,12 +182,12 @@ func TestDelegatedAsyncRunPermittedByMatchingGrant(t *testing.T) {
 func TestDelegatedGovernedRunDeniedOnSubstrateMismatch(t *testing.T) {
 	grants := []core.DelegationGrant{{
 		Subject:          "local-agent",
-		OperationClasses: []string{core.CapSproutRun},
+		OperationClasses: []string{core.CapSproutGrow},
 		Substrates:       []string{"another-substrate"},
 	}}
 	mux, _, executed := newDelegationTestHandler(t, grants)
 
-	request := httptest.NewRequest(http.MethodPost, "/v1/sprouts/run", strings.NewReader(sproutRunBody))
+	request := httptest.NewRequest(http.MethodPost, "/v1/sprouts/grow", strings.NewReader(sproutRunBody))
 	request.Header.Set(DelegationSubjectHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
@@ -210,7 +210,7 @@ func TestDelegationGateMiddlewareDefaultDeny(t *testing.T) {
 	gate := &DelegationGate{
 		Authorizer: core.NewDelegationAuthorizer([]core.DelegationGrant{{
 			Subject:          "local-agent",
-			OperationClasses: []string{core.CapSproutRun},
+			OperationClasses: []string{core.CapSproutGrow},
 			Substrates:       []string{"core"},
 		}}),
 		Bus: bus,

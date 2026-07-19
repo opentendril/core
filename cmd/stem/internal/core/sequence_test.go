@@ -140,21 +140,21 @@ func TestSequenceCapabilitiesInRegistry(t *testing.T) {
 	for _, capability := range svc.Capabilities() {
 		declared[capability.Name] = true
 	}
-	for _, name := range []string{core.CapSequenceList, core.CapSequenceRun} {
+	for _, name := range []string{core.CapSequenceList, core.CapSequenceGrow} {
 		if !declared[name] {
 			t.Errorf("registry does not declare %s", name)
 		}
 	}
 
 	// Invoke path (the projection MCP/CLI use) rejects a missing pathOrName.
-	if _, err := svc.Invoke(context.Background(), core.CapSequenceRun, map[string]any{}); err == nil {
-		t.Fatal("Invoke(sequence.run) without pathOrName must fail")
+	if _, err := svc.Invoke(context.Background(), core.CapSequenceGrow, map[string]any{}); err == nil {
+		t.Fatal("Invoke(sequence.grow) without pathOrName must fail")
 	}
-	result, err := svc.Invoke(context.Background(), core.CapSequenceRun, map[string]any{"pathOrName": "deploy"})
+	result, err := svc.Invoke(context.Background(), core.CapSequenceGrow, map[string]any{"pathOrName": "deploy"})
 	if err != nil {
-		t.Fatalf("Invoke(sequence.run): %v", err)
+		t.Fatalf("Invoke(sequence.grow): %v", err)
 	}
 	if _, ok := result.(core.SequenceRunResult); !ok {
-		t.Fatalf("Invoke(sequence.run) = %T, want core.SequenceRunResult", result)
+		t.Fatalf("Invoke(sequence.grow) = %T, want core.SequenceRunResult", result)
 	}
 }

@@ -86,7 +86,7 @@ steps:
 
 ### C. Detached Asynchronous Execution
 To support long-running, overnight workloads using slow local LLMs, sequences can be executed asynchronously.
-* Using the CLI flag `--detach` (or `-d`), the sequence is handed off to the Stem daemon via the `POST /v1/sessions/{sessionId}/sequences/run` REST endpoint.
+* Using the CLI flag `--detach` (or `-d`), the sequence is handed off to the Stem daemon via the `POST /v1/sessions/{sessionId}/sequences/grow` REST endpoint.
 * The daemon runs the sequence in the background, freeing up the user's terminal. Logs and status can be tracked via existing session event APIs.
 
 ---
@@ -114,12 +114,12 @@ While the `sproutTendril` tool is registered in my available MCP servers, runnin
 *   Implement CLI prompt checking for `onFailure: pause` interaction.
 
 #### [NEW] [cmdsequence.go](../cmd/stem/cmdsequence.go)
-*   Implement CLI commands: `tendril sequence run <path>` and `tendril sequence list`.
+*   Implement CLI commands: `tendril sequence grow <path>` and `tendril sequence list`.
 *   Support `--provider`, `--model`, and `--base-url` override flags.
 *   Support `--detach` flag for asynchronous execution.
 
 #### [NEW] [internal/api/sessions.go](../cmd/stem/internal/api/sessions.go)
-*   Implement `POST /v1/sessions/{sessionId}/sequences/run` to support detached background runs.
+*   Implement `POST /v1/sessions/{sessionId}/sequences/grow` to support detached background runs.
 
 #### [MODIFY] [internal/api/mcp.go](../cmd/stem/internal/api/mcp.go)
 *   Expose `runSequence` tool in MCP, supporting headless execution of parallel sequence files.
@@ -134,5 +134,5 @@ While the `sproutTendril` tool is registered in my available MCP servers, runnin
 
 ### Manual Verification
 1.  Create a parallel sequence YAML: `step-1` (create file A), `step-2` (create file B), and `step-3` (read A and B, depends on 1 and 2).
-2.  Run `tendril sequence run test.yaml` with `concurrencyLimit: 2`.
+2.  Run `tendril sequence grow test.yaml` with `concurrencyLimit: 2`.
 3.  Verify from logs that `step-1` and `step-2` run concurrently, and `step-3` only starts after both complete.

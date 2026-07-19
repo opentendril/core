@@ -10,7 +10,7 @@ import (
 
 // Firer is the seam through which the scheduler grows a due entry. The serve
 // layer provides the concrete implementation (Hormonal Trigger evaluation plus
-// the governed sequence.run / sprout.run capabilities); this package stays
+// the governed sequence.grow / sprout.grow capabilities); this package stays
 // decoupled from the Core and the event bus.
 type Firer interface {
 	Fire(ctx context.Context, name string, e Entry) error

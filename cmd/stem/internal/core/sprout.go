@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// The sprout/run capability family. sprout.run
+// The sprout/run capability family. sprout.grow
 // delegates a one-shot task to an autonomous Tendril inside a network-isolated
 // terrarium — the core execution path of the product. The terrarium
 // orchestration (substrate resolution, container lifecycle, run recording)
@@ -112,7 +112,7 @@ func (s *Service) WithSprout(operations SproutOperations) *Service {
 // it to completion via the injected execution port.
 func (s *Service) SproutRun(ctx context.Context, in SproutRunInput) (SproutRunResult, error) {
 	if s.sprout.Run == nil {
-		return SproutRunResult{}, fmt.Errorf("sprout.run is not wired: construct the Core with WithSprout(SproutOperations{Run: …})")
+		return SproutRunResult{}, fmt.Errorf("sprout.grow is not wired: construct the Core with WithSprout(SproutOperations{Run: …})")
 	}
 	if strings.TrimSpace(in.Transcript) == "" || strings.TrimSpace(in.Substrate) == "" {
 		return SproutRunResult{}, fmt.Errorf("transcript and substrate are required")
@@ -161,7 +161,7 @@ func (s *Service) SproutRun(ctx context.Context, in SproutRunInput) (SproutRunRe
 func (s *Service) sproutCapabilities() []Capability {
 	return []Capability{
 		{
-			Name:        CapSproutRun,
+			Name:        CapSproutGrow,
 			Description: "Delegate a one-shot task to an autonomous Tendril inside a secure terrarium and wait for the result.",
 			InputSchema: schemaObject(map[string]any{
 				"transcript":      stringProp("A clear, actionable description of the task for the Tendril to execute."),

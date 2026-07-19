@@ -23,7 +23,7 @@ import (
 
 // runSproutCmd is the CLI adapter for the governed sprout/run capability
 // family: a thin projection of the same transport-free core.Core
-// the REST and MCP surfaces use. `tendril sprout run` delegates a one-shot
+// the REST and MCP surfaces use. `tendril sprout grow` delegates a one-shot
 // task to an autonomous Tendril in a secure terrarium and prints its output —
 // the headless CLI equivalent of the MCP sproutTendril tool.
 //
@@ -306,7 +306,7 @@ type sproutCommand struct {
 // sessionCommands, this registration — NOT core.CapabilityNames() — is the
 // source of truth the parity coverage test reads for the CLI arm.
 var sproutCommands = []sproutCommand{
-	{"run", core.CapSproutRun},
+	{"grow", core.CapSproutGrow},
 }
 
 // lookupSproutCommand resolves a CLI subcommand token to its registered entry.
@@ -386,16 +386,16 @@ func parseSproutArgs(capName string, args []string) (map[string]any, bool, error
 		input["transcript"] = strings.Join(positional, " ")
 	}
 	if transcript, _ := input["transcript"].(string); strings.TrimSpace(transcript) == "" {
-		return nil, false, fmt.Errorf("missing transcript. Usage: tendril sprout run --substrate <path|name> <transcript>")
+		return nil, false, fmt.Errorf("missing transcript. Usage: tendril sprout grow --substrate <path|name> <transcript>")
 	}
 	if substrate, _ := input["substrate"].(string); strings.TrimSpace(substrate) == "" {
-		return nil, false, fmt.Errorf("missing substrate. Usage: tendril sprout run --substrate <path|name> <transcript>")
+		return nil, false, fmt.Errorf("missing substrate. Usage: tendril sprout grow --substrate <path|name> <transcript>")
 	}
 	return input, detach, nil
 }
 
 func printSproutUsage() {
-	fmt.Println("Usage: tendril sprout run --substrate <path|name> [flags] <transcript...>")
+	fmt.Println("Usage: tendril sprout grow --substrate <path|name> [flags] <transcript...>")
 	fmt.Println("  --substrate         The absolute path or named substrate key of the target workspace (required)")
 	fmt.Println("  --session ID        Bind the run to an existing Tendril session (its preferences shape the sprout)")
 	fmt.Println("  --step ID           Pin a stable step identifier")
@@ -427,7 +427,7 @@ func submitSproutAsync(ctx context.Context, input map[string]any) {
 		port = "8080"
 	}
 
-	url := fmt.Sprintf("http://localhost:%s/v1/sessions/new/sprout/run", port)
+	url := fmt.Sprintf("http://localhost:%s/v1/sessions/new/sprout/grow", port)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ Failed to build request: %v\n", err)

@@ -172,7 +172,7 @@ func TestGetOrCreateAPIKeyPrefersEnv(t *testing.T) {
 }
 
 // Issue slice 3: a scheduler-originated sprout run must be attributable
-// in history. The firer stamps origin "scheduler" into the governed sprout.run
+// in history. The firer stamps origin "scheduler" into the governed sprout.grow
 // input; the Core carries it onto the resolved SproutSpec, which is exactly
 // the field the execution port records as historydb.SproutRun.Origin
 // (cmdsprout.go). Asserting on the spec therefore pins the whole flow this
