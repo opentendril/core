@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"runtime"
 	"strings"
@@ -173,6 +175,52 @@ func TestParseOllamaTags(t *testing.T) {
 	if _, err := parseOllamaTags([]byte("not json")); err == nil {
 		t.Error("expected error for malformed body")
 	}
+}
+
+func TestListOllamaModels(t *testing.T) {
+	t.Run("success strips /v1 and hits /api/tags", func(t *testing.T) {
+		var gotPath string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotPath = r.URL.Path
+			fmt.Fprint(w, `{"models":[{"name":"m","size":123}]}`)
+		}))
+		t.Cleanup(server.Close)
+
+		models, err := listOllamaModels(context.Background(), server.URL+"/v1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotPath != "/api/tags" {
+			t.Errorf("request path = %q, want %q", gotPath, "/api/tags")
+		}
+		if len(models) != 1 {
+			t.Fatalf("expected 1 model, got %d", len(models))
+		}
+		if models[0].Name != "m" || models[0].SizeBytes != 123 {
+			t.Errorf("unexpected model: %+v", models[0])
+		}
+	})
+
+	t.Run("non-200 response errors", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "boom", http.StatusInternalServerError)
+		}))
+		t.Cleanup(server.Close)
+
+		if _, err := listOllamaModels(context.Background(), server.URL+"/v1"); err == nil {
+			t.Error("expected error for a 500 response")
+		}
+	})
+
+	t.Run("unreachable candidate exhausts and errors", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		url := server.URL
+		server.Close() // nothing listening: connection refused
+
+		if _, err := listOllamaModels(context.Background(), url+"/v1"); err == nil {
+			t.Error("expected error when every candidate is unreachable")
+		}
+	})
 }
 
 func TestBuildAssessReport(t *testing.T) {
