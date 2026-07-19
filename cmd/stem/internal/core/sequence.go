@@ -19,7 +19,7 @@ import (
 //
 // `tendril sequence dynamic` is CLI-local sugar: it synthesizes a one-step
 // sequence file from a natural-language prompt and then invokes this same
-// governed sequence.run capability on it. The synthesis is not a separate
+// governed sequence.grow capability on it. The synthesis is not a separate
 // governed command.
 
 // SequenceRunInput asks the Stem to run a YAML sequence.
@@ -96,7 +96,7 @@ func (s *Service) SequenceList(ctx context.Context) ([]string, error) {
 // legacy surfaces did.
 func (s *Service) SequenceRun(ctx context.Context, in SequenceRunInput) (SequenceRunResult, error) {
 	if s.sequence.Run == nil {
-		return SequenceRunResult{}, fmt.Errorf("sequence.run is not wired: construct the Core with WithSequence(SequenceOperations{Run: …})")
+		return SequenceRunResult{}, fmt.Errorf("sequence.grow is not wired: construct the Core with WithSequence(SequenceOperations{Run: …})")
 	}
 	if strings.TrimSpace(in.PathOrName) == "" {
 		return SequenceRunResult{}, fmt.Errorf("pathOrName is required")
@@ -118,7 +118,7 @@ func (s *Service) sequenceCapabilities() []Capability {
 			},
 		},
 		{
-			Name:        CapSequenceRun,
+			Name:        CapSequenceGrow,
 			Description: "Run a YAML sequence from .tendril/sequences/ or a relative path to completion using the parallel sequence meristem.",
 			InputSchema: schemaObject(map[string]any{
 				"pathOrName": stringProp("The sequence YAML file path or sequence name to run."),

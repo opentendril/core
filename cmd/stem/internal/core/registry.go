@@ -29,8 +29,8 @@ const (
 	CapMeshTraitAccept = "mesh.trait.accept"
 	CapMeshTraitReject = "mesh.trait.reject"
 	CapSequenceList    = "sequence.list"
-	CapSequenceRun     = "sequence.run"
-	CapSproutRun       = "sprout.run"
+	CapSequenceGrow    = "sequence.grow"
+	CapSproutGrow      = "sprout.grow"
 	CapPassthroughRun  = "passthrough.run"
 	CapGitCommit       = "git.commit"
 )
@@ -73,8 +73,8 @@ func CapabilityNames() []string {
 		CapMeshTraitAccept,
 		CapMeshTraitReject,
 		CapSequenceList,
-		CapSequenceRun,
-		CapSproutRun,
+		CapSequenceGrow,
+		CapSproutGrow,
 		CapPassthroughRun,
 		CapGitCommit,
 	}
@@ -90,7 +90,7 @@ func CapabilityNames() []string {
 // delegated; the surfaces that gate per-invocation consult it.
 func DelegatedCapabilityNames() []string {
 	names := []string{
-		CapSproutRun,
+		CapSproutGrow,
 		CapPassthroughRun,
 		CapGitCommit,
 	}

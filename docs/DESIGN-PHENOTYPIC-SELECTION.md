@@ -104,5 +104,5 @@ In OpenTendril, the **compiler, test suite, and linter** act as the objective en
 
 ### Manual Verification
 1.  Define a sequence step with `phenotypesCount: 3` and `fitnessTest: "go test ./..."`.
-2.  Trigger `tendril sequence run`.
+2.  Trigger `tendril sequence grow`.
 3.  Confirm from Docker commands (`docker ps`) that multiple sprouts run concurrently and terminate immediately once a winner compiles and passes the tests.

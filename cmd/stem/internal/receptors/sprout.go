@@ -19,9 +19,9 @@ import (
 // family. Exactly like GenomeHandler, it translates HTTP to and
 // from the transport-free core.Core and holds no business logic.
 //
-// POST /v1/sprouts/run executes synchronously and answers when the Tendril
+// POST /v1/sprouts/grow executes synchronously and answers when the Tendril
 // matures or withers — the same semantics the MCP sproutTendril tool has
-// always had. POST /v1/sessions/{sessionId}/sprout/run is the ungoverned
+// always had. POST /v1/sessions/{sessionId}/sprout/grow is the ungoverned
 // detached (202 Accepted) path: it returns immediately and surfaces progress
 // via the EventBus, /ws, and the session sprout-runs history view.
 type SproutHandler struct {
@@ -63,7 +63,7 @@ func (h *SproutHandler) authorizeDelegated(w http.ResponseWriter, r *http.Reques
 	}
 	decision := h.delegation.Authorize(core.DelegationRequest{
 		Subject:        subject,
-		OperationClass: core.CapSproutRun,
+		OperationClass: core.CapSproutGrow,
 		Substrate:      strings.TrimSpace(substrate),
 	})
 	if !decision.Authorized {
@@ -77,7 +77,7 @@ func (h *SproutHandler) authorizeDelegated(w http.ResponseWriter, r *http.Reques
 // wires (same contract as SessionsHandler.governedRoutes).
 func (h *SproutHandler) governedRoutes() []governedRoute {
 	return []governedRoute{
-		{"POST /v1/sprouts/run", core.CapSproutRun, h.run},
+		{"POST /v1/sprouts/grow", core.CapSproutGrow, h.run},
 	}
 }
 
@@ -107,7 +107,7 @@ func (h *SproutHandler) Register(mux *http.ServeMux, auth func(http.HandlerFunc)
 	// Detached path — not part of the parity registry, but delegated
 	// invocations of it pass through the delegation authorizer inside
 	// runSproutAsync like every other governed surface.
-	mux.HandleFunc("POST /v1/sessions/{sessionId}/sprout/run", auth(h.runSproutAsync))
+	mux.HandleFunc("POST /v1/sessions/{sessionId}/sprout/grow", auth(h.runSproutAsync))
 }
 
 func (h *SproutHandler) run(w http.ResponseWriter, r *http.Request) {

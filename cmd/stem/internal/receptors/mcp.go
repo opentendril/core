@@ -403,7 +403,7 @@ func (h *MCPHandler) ProcessMCPMessage(reqBytes []byte) []byte {
 		tools := []map[string]interface{}{
 			{
 				"name":        "runSequence",
-				"description": "Deprecated alias of the governed sequence.run capability. Runs a YAML sequence from .tendril/sequences/ or a relative path using the parallel sequence meristem.",
+				"description": "Deprecated alias of the governed sequence.grow capability. Runs a YAML sequence from .tendril/sequences/ or a relative path using the parallel sequence meristem.",
 				"inputSchema": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
@@ -417,7 +417,7 @@ func (h *MCPHandler) ProcessMCPMessage(reqBytes []byte) []byte {
 			},
 			{
 				"name":        "sproutTendril",
-				"description": "Deprecated alias of the governed sprout.run capability. Delegates a complex coding task to the autonomous OpenTendril brain. Use this tool when you need an agent to run terminal commands, debug complex errors, search the web, or execute multi-step engineering tasks inside a secure terrarium.",
+				"description": "Deprecated alias of the governed sprout.grow capability. Delegates a complex coding task to the autonomous OpenTendril brain. Use this tool when you need an agent to run terminal commands, debug complex errors, search the web, or execute multi-step engineering tasks inside a secure terrarium.",
 				"inputSchema": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
@@ -577,7 +577,7 @@ func (h *MCPHandler) ProcessMCPMessage(reqBytes []byte) []byte {
 					return h.formatDelegationDenied(req.ID, decision)
 				}
 			}
-			if params.Name == core.CapSproutRun {
+			if params.Name == core.CapSproutGrow {
 				// Origin and the pinned stdio session are MCP-surface metadata
 				// (exactly like the REST adapter stamping its own origin), so
 				// the adapter fills unset values before the Core runs.
@@ -867,7 +867,7 @@ func (h *MCPHandler) ProcessMCPMessage(reqBytes []byte) []byte {
 			})
 		}
 
-		// Deprecated alias of the governed sequence.run capability:
+		// Deprecated alias of the governed sequence.grow capability:
 		// same Core, legacy tool name, legacy argument-key fallbacks
 		// (path/sequence), and text rendering preserved for existing MCP
 		// clients. Adapter translation only — the execution that used to run
@@ -916,7 +916,7 @@ func (h *MCPHandler) ProcessMCPMessage(reqBytes []byte) []byte {
 			})
 		}
 
-		// Deprecated alias of the governed sprout.run capability:
+		// Deprecated alias of the governed sprout.grow capability:
 		// same Core, legacy tool name, legacy protocol errors, and
 		// text rendering preserved for existing MCP clients. Adapter
 		// translation only — the substrate resolution, terrarium execution,
@@ -935,11 +935,11 @@ func (h *MCPHandler) ProcessMCPMessage(reqBytes []byte) []byte {
 			return h.formatError(req.ID, -32603, "Internal error", "Core capability service is not configured.")
 		}
 
-		// This deprecated alias reaches the delegated sprout.run
+		// This deprecated alias reaches the delegated sprout.grow
 		// operation-class, so it passes the same delegation gate as the
 		// canonical tool — no alias path may reach a delegated capability
 		// ungoverned.
-		if decision := h.authorizeDelegatedTool(core.CapSproutRun, params.Arguments); !decision.Authorized {
+		if decision := h.authorizeDelegatedTool(core.CapSproutGrow, params.Arguments); !decision.Authorized {
 			return h.formatDelegationDenied(req.ID, decision)
 		}
 

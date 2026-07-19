@@ -106,7 +106,7 @@ func (h *SessionsHandler) Register(mux *http.ServeMux, auth func(http.HandlerFun
 	// parity registry.
 	mux.HandleFunc("GET /v1/sessions/{sessionId}/events", auth(h.events))
 	mux.HandleFunc("GET /v1/sessions/{sessionId}/sprout-runs", auth(h.sproutRuns))
-	mux.HandleFunc("POST /v1/sessions/{sessionId}/sequences/run", auth(h.runSequenceAsync))
+	mux.HandleFunc("POST /v1/sessions/{sessionId}/sequences/grow", auth(h.runSequenceAsync))
 }
 
 type createSessionRequest struct {

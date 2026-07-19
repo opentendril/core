@@ -13,7 +13,7 @@ import (
 func activeGrant() core.DelegationGrant {
 	return core.DelegationGrant{
 		Subject:          "local-agent",
-		OperationClasses: []string{core.CapSproutRun},
+		OperationClasses: []string{core.CapSproutGrow},
 		Substrates:       []string{"core"},
 		Egress:           []string{"github.com"},
 	}
@@ -22,7 +22,7 @@ func activeGrant() core.DelegationGrant {
 func sproutDelegationRequest() core.DelegationRequest {
 	return core.DelegationRequest{
 		Subject:        "local-agent",
-		OperationClass: core.CapSproutRun,
+		OperationClass: core.CapSproutGrow,
 		Substrate:      "core",
 	}
 }
@@ -61,12 +61,12 @@ func TestDelegationAuthorizerDeniesNonMatchingRequests(t *testing.T) {
 	authorizer := core.NewDelegationAuthorizer([]core.DelegationGrant{activeGrant()})
 
 	cases := map[string]core.DelegationRequest{
-		"wrong subject":         {Subject: "other-agent", OperationClass: core.CapSproutRun, Substrate: "core"},
-		"wrong operation-class": {Subject: "local-agent", OperationClass: core.CapSequenceRun, Substrate: "core"},
-		"wrong substrate":       {Subject: "local-agent", OperationClass: core.CapSproutRun, Substrate: "other-repo"},
-		"empty subject":         {Subject: "", OperationClass: core.CapSproutRun, Substrate: "core"},
+		"wrong subject":         {Subject: "other-agent", OperationClass: core.CapSproutGrow, Substrate: "core"},
+		"wrong operation-class": {Subject: "local-agent", OperationClass: core.CapSequenceGrow, Substrate: "core"},
+		"wrong substrate":       {Subject: "local-agent", OperationClass: core.CapSproutGrow, Substrate: "other-repo"},
+		"empty subject":         {Subject: "", OperationClass: core.CapSproutGrow, Substrate: "core"},
 		"empty operation-class": {Subject: "local-agent", OperationClass: "", Substrate: "core"},
-		"empty substrate":       {Subject: "local-agent", OperationClass: core.CapSproutRun, Substrate: ""},
+		"empty substrate":       {Subject: "local-agent", OperationClass: core.CapSproutGrow, Substrate: ""},
 	}
 
 	for name, request := range cases {
@@ -132,12 +132,12 @@ func TestDelegationAuthorizerCannotBeWidenedAfterConstruction(t *testing.T) {
 
 	// Attempt to widen the grant in place after construction.
 	grants[0].Subject = "escalated-agent"
-	grants[0].OperationClasses[0] = core.CapSequenceRun
+	grants[0].OperationClasses[0] = core.CapSequenceGrow
 	grants[0].Substrates[0] = "other-repo"
 
 	widened := core.DelegationRequest{
 		Subject:        "escalated-agent",
-		OperationClass: core.CapSequenceRun,
+		OperationClass: core.CapSequenceGrow,
 		Substrate:      "other-repo",
 	}
 	if decision := authorizer.Authorize(widened); decision.Authorized {
@@ -154,7 +154,7 @@ func TestLoadDelegationGrantsParsesControlPlaneFile(t *testing.T) {
   local-agent:
     substrates: [core]
     operationClasses:
-      - sprout.run
+      - sprout.grow
     egress: [github.com, proxy.golang.org]
     expires: 2199-08-15
     confirmAbove: { impact: high }
@@ -175,8 +175,8 @@ func TestLoadDelegationGrantsParsesControlPlaneFile(t *testing.T) {
 	if grant.Subject != "local-agent" {
 		t.Errorf("subject = %q, want local-agent", grant.Subject)
 	}
-	if len(grant.OperationClasses) != 1 || grant.OperationClasses[0] != core.CapSproutRun {
-		t.Errorf("operationClasses = %v, want [sprout.run]", grant.OperationClasses)
+	if len(grant.OperationClasses) != 1 || grant.OperationClasses[0] != core.CapSproutGrow {
+		t.Errorf("operationClasses = %v, want [sprout.grow]", grant.OperationClasses)
 	}
 	if len(grant.Substrates) != 1 || grant.Substrates[0] != "core" {
 		t.Errorf("substrates = %v, want [core]", grant.Substrates)
@@ -218,7 +218,7 @@ func TestLoadDelegationGrantsNeverReadsSubstrateCarriedFile(t *testing.T) {
 	hostile := `grants:
   hostile-agent:
     substrates: [core]
-    operationClasses: [sprout.run]
+    operationClasses: [sprout.grow]
 `
 	if err := os.WriteFile(filepath.Join(substrateTendrilDir, core.DelegationGrantsFilename), []byte(hostile), 0o644); err != nil {
 		t.Fatalf("write substrate-carried grants file: %v", err)
@@ -235,7 +235,7 @@ func TestLoadDelegationGrantsNeverReadsSubstrateCarriedFile(t *testing.T) {
 	authorizer := core.NewDelegationAuthorizer(grants)
 	hostileRequest := core.DelegationRequest{
 		Subject:        "hostile-agent",
-		OperationClass: core.CapSproutRun,
+		OperationClass: core.CapSproutGrow,
 		Substrate:      "core",
 	}
 	if decision := authorizer.Authorize(hostileRequest); decision.Authorized {
@@ -251,18 +251,18 @@ func TestLoadDelegationGrantsRejectsMalformedGrants(t *testing.T) {
 `,
 		"no substrates": `grants:
   local-agent:
-    operationClasses: [sprout.run]
+    operationClasses: [sprout.grow]
 `,
 		"bad expires": `grants:
   local-agent:
     substrates: [core]
-    operationClasses: [sprout.run]
+    operationClasses: [sprout.grow]
     expires: someday
 `,
 		"bad confirmAbove impact": `grants:
   local-agent:
     substrates: [core]
-    operationClasses: [sprout.run]
+    operationClasses: [sprout.grow]
     confirmAbove: { impact: catastrophic }
 `,
 	}
@@ -279,18 +279,18 @@ func TestLoadDelegationGrantsRejectsMalformedGrants(t *testing.T) {
 }
 
 // TestDelegatedCapabilityTaxonomy pins the canonical delegated
-// operation-class set: exactly sprout.run, passthrough.run, and git.commit
+// operation-class set: exactly sprout.grow, passthrough.run, and git.commit
 // are delegated, every one of them is a canonical capability, and no
 // non-delegated capability is misclassified.
 func TestDelegatedCapabilityTaxonomy(t *testing.T) {
-	delegated := []string{core.CapSproutRun, core.CapPassthroughRun, core.CapGitCommit}
+	delegated := []string{core.CapSproutGrow, core.CapPassthroughRun, core.CapGitCommit}
 	for _, name := range delegated {
 		if !core.IsDelegatedCapability(name) {
 			t.Errorf("IsDelegatedCapability(%q) = false, want true", name)
 		}
 	}
 
-	for _, name := range []string{core.CapListSessions, core.CapGenomeView, core.CapSequenceRun, core.CapMeshGraft, "", "made.up"} {
+	for _, name := range []string{core.CapListSessions, core.CapGenomeView, core.CapSequenceGrow, core.CapMeshGraft, "", "made.up"} {
 		if core.IsDelegatedCapability(name) {
 			t.Errorf("IsDelegatedCapability(%q) = true, want false", name)
 		}

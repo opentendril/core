@@ -61,7 +61,7 @@ func newMCPDelegationTestHandler(t *testing.T) (*MCPHandler, *eventbus.Bus, *ato
 func mcpDelegationGrant() core.DelegationGrant {
 	return core.DelegationGrant{
 		Subject:          "mcp-agent",
-		OperationClasses: []string{core.CapSproutRun, core.CapPassthroughRun, core.CapGitCommit},
+		OperationClasses: []string{core.CapSproutGrow, core.CapPassthroughRun, core.CapGitCommit},
 		Substrates:       []string{"core"},
 	}
 }
@@ -107,10 +107,10 @@ func mcpCallTool(t *testing.T, handler *MCPHandler, name string, args map[string
 
 // delegatedToolCalls enumerates every MCP path that reaches a delegated
 // operation-class: the three canonical capability tools plus the deprecated
-// sproutTendril alias (which reaches sprout.run).
+// sproutTendril alias (which reaches sprout.grow).
 func delegatedToolCalls() map[string]map[string]any {
 	return map[string]map[string]any{
-		core.CapSproutRun:      {"transcript": "grow", "substrate": "core"},
+		core.CapSproutGrow:     {"transcript": "grow", "substrate": "core"},
 		core.CapPassthroughRun: {"substrate": "core", "command": []string{"gofmt", "-l", "."}},
 		core.CapGitCommit:      {"substrate": "core", "message": "delegated commit"},
 		"sproutTendril":        {"transcript": "grow", "substrate": "core"},

@@ -150,21 +150,21 @@ func TestSproutCapabilityInRegistry(t *testing.T) {
 	for _, capability := range svc.Capabilities() {
 		declared[capability.Name] = true
 	}
-	if !declared[core.CapSproutRun] {
-		t.Errorf("registry does not declare %s", core.CapSproutRun)
+	if !declared[core.CapSproutGrow] {
+		t.Errorf("registry does not declare %s", core.CapSproutGrow)
 	}
 
 	// Invoke path (the projection MCP/CLI use) enforces required fields and
 	// returns the typed result.
-	if _, err := svc.Invoke(context.Background(), core.CapSproutRun, map[string]any{"transcript": "t"}); err == nil {
-		t.Fatal("Invoke(sprout.run) without substrate must fail")
+	if _, err := svc.Invoke(context.Background(), core.CapSproutGrow, map[string]any{"transcript": "t"}); err == nil {
+		t.Fatal("Invoke(sprout.grow) without substrate must fail")
 	}
-	result, err := svc.Invoke(context.Background(), core.CapSproutRun, map[string]any{"transcript": "t", "substrate": "s"})
+	result, err := svc.Invoke(context.Background(), core.CapSproutGrow, map[string]any{"transcript": "t", "substrate": "s"})
 	if err != nil {
-		t.Fatalf("Invoke(sprout.run): %v", err)
+		t.Fatalf("Invoke(sprout.grow): %v", err)
 	}
 	if _, ok := result.(core.SproutRunResult); !ok {
-		t.Fatalf("Invoke(sprout.run) = %T, want core.SproutRunResult", result)
+		t.Fatalf("Invoke(sprout.grow) = %T, want core.SproutRunResult", result)
 	}
 }
 

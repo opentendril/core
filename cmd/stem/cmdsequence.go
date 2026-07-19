@@ -24,7 +24,7 @@ import (
 // of the same transport-free core.Core the REST and MCP surfaces use.
 //
 // `dynamic` is CLI-local sugar: it synthesizes a one-step sequence file from
-// a natural-language prompt and then invokes the same governed sequence.run
+// a natural-language prompt and then invokes the same governed sequence.grow
 // capability on it. `scoped-ci` is the same shape of sugar for deterministic
 // verification: it generates a change-scoped verifier sequence and runs it
 // through the same capability. `--detach` is likewise adapter-local: it hands
@@ -37,7 +37,7 @@ func runSequenceCmd(ctx context.Context, args []string) {
 	}
 
 	switch strings.ToLower(args[0]) {
-	case "run":
+	case "grow":
 		runSequenceRunCmd(ctx, args[1:])
 	case "list":
 		runSequenceListCmd(ctx)
@@ -55,7 +55,7 @@ func runSequenceCmd(ctx context.Context, args []string) {
 }
 
 func runSequenceRunCmd(ctx context.Context, args []string) {
-	input, detach, err := parseSequenceArgs(core.CapSequenceRun, args)
+	input, detach, err := parseSequenceArgs(core.CapSequenceGrow, args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ %v\n", err)
 		os.Exit(1)
@@ -81,7 +81,7 @@ func runSequenceRunCmd(ctx context.Context, args []string) {
 		os.Exit(1)
 	}
 
-	result, err := svc.Invoke(ctx, core.CapSequenceRun, input)
+	result, err := svc.Invoke(ctx, core.CapSequenceGrow, input)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ Sequence run failed: %v\n", err)
 		os.Exit(1)
@@ -113,7 +113,7 @@ func runSequenceListCmd(ctx context.Context) {
 }
 
 func runSequenceDynamicCmd(ctx context.Context, args []string) {
-	input, detach, err := parseSequenceArgs(core.CapSequenceRun, args)
+	input, detach, err := parseSequenceArgs(core.CapSequenceGrow, args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ %v\n", err)
 		os.Exit(1)
@@ -180,7 +180,7 @@ func runSequenceDynamicCmd(ctx context.Context, args []string) {
 		os.Exit(1)
 	}
 
-	result, err := svc.Invoke(ctx, core.CapSequenceRun, input)
+	result, err := svc.Invoke(ctx, core.CapSequenceGrow, input)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ Dynamic sequence run failed: %v\n", err)
 		os.Exit(1)
@@ -195,7 +195,7 @@ func runSequenceDynamicCmd(ctx context.Context, args []string) {
 
 // runSequenceScopedCICmd generates the change-scoped verification sequence
 // (see conductor.GenerateScopedVerificationSequence) and runs it through the
-// same governed sequence.run capability `run` and `dynamic` use, then renders
+// same governed sequence.grow capability `run` and `dynamic` use, then renders
 // a final verdict that distinguishes green from failed from blocked —
 // blocked meaning the sealed run skipped applicable tests and therefore
 // verified less than it was asked to, which must never read as green.
@@ -215,7 +215,7 @@ func runSequenceScopedCICmd(ctx context.Context, args []string) {
 		remaining = append(remaining, args[i])
 	}
 
-	input, detach, err := parseSequenceArgs(core.CapSequenceRun, remaining)
+	input, detach, err := parseSequenceArgs(core.CapSequenceGrow, remaining)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ %v\n", err)
 		os.Exit(1)
@@ -282,7 +282,7 @@ func runSequenceScopedCICmd(ctx context.Context, args []string) {
 		os.Exit(1)
 	}
 
-	result, runErr := svc.Invoke(ctx, core.CapSequenceRun, input)
+	result, runErr := svc.Invoke(ctx, core.CapSequenceGrow, input)
 
 	if err := os.Remove(tempPath); err != nil && !os.IsNotExist(err) {
 		fmt.Fprintf(os.Stderr, "⚠️ Failed to remove temporary sequence %s: %v\n", tempPath, err)
@@ -405,11 +405,11 @@ type sequenceCommand struct {
 }
 
 // sequenceCommands is the CLI command tree for the governed half of
-// `tendril sequence` (dynamic is adapter-local sugar over sequence.run). Like
+// `tendril sequence` (dynamic is adapter-local sugar over sequence.grow). Like
 // sessionCommands, this registration — NOT core.CapabilityNames() — is the
 // source of truth the parity coverage test reads for the CLI arm.
 var sequenceCommands = []sequenceCommand{
-	{"run", core.CapSequenceRun},
+	{"grow", core.CapSequenceGrow},
 	{"list", core.CapSequenceList},
 }
 
@@ -488,8 +488,8 @@ func parseSequenceArgs(capName string, args []string) (map[string]any, bool, err
 }
 
 func printSequenceUsage() {
-	fmt.Println("Usage: tendril sequence <run|list|dynamic|scoped-ci> [arguments]")
-	fmt.Println("  run <path_or_name>  Run a sequence YAML file from .tendril/sequences/ or a relative path")
+	fmt.Println("Usage: tendril sequence <grow|list|dynamic|scoped-ci> [arguments]")
+	fmt.Println("  grow <path_or_name>  Grow a sequence YAML file from .tendril/sequences/ or a relative path")
 	fmt.Println("    --provider        LLM provider override (e.g. local)")
 	fmt.Println("    --model           LLM model override (e.g. llama3.2)")
 	fmt.Println("    --base-url        LLM base URL override (e.g. http://host:11434/v1)")
@@ -528,7 +528,7 @@ func submitSequenceAsync(ctx context.Context, pathOrName, provider, model, baseU
 		port = "8080"
 	}
 
-	resp, err := http.Post(fmt.Sprintf("http://localhost:%s/v1/sessions/new/sequences/run", port), "application/json", bytes.NewReader(payload))
+	resp, err := http.Post(fmt.Sprintf("http://localhost:%s/v1/sessions/new/sequences/grow", port), "application/json", bytes.NewReader(payload))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "❌ Failed to connect to Stem daemon: %v\n", err)
 		fmt.Fprintln(os.Stderr, "Please ensure the OpenTendril daemon is running (`tendril serve`) to use --detach.")

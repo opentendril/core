@@ -246,7 +246,7 @@ func runServeCmd(ctx context.Context, args []string) {
 	sequenceHandler.Register(mux, guardedAuth)
 
 	// Sprout REST API (adapter, final family). Detached
-	// POST /v1/sessions/{sessionId}/sprout/run is registered outside the
+	// POST /v1/sessions/{sessionId}/sprout/grow is registered outside the
 	// parity registry inside SproutHandler.Register. Both sprout routes
 	// consult the delegation gate per-invocation (with the decoded substrate
 	// in hand), so they take the bare bearer auth rather than guardedAuth's
@@ -369,7 +369,7 @@ func runServeCmd(ctx context.Context, args []string) {
 // scheduledRunFirer is the concrete firing seam the scheduler grows entries
 // through. Each fire, in order: (1) the run passes Hormonal Triggers exactly
 // like the chat path — a blocked run never grows; (2) the entry grows through
-// the same governed Core capability (sequence.run / sprout.run) as every
+// the same governed Core capability (sequence.grow / sprout.grow) as every
 // other surface, so the run's lifecycle telemetry flows to the Command Center
 // via the EventBus-threaded sequence port.
 func scheduledRunFirer(coreSvc core.Core, sessions *session.Manager, triggersDir string) scheduler.FirerFunc {
@@ -418,7 +418,7 @@ func scheduledRunFirer(coreSvc core.Core, sessions *session.Manager, triggersDir
 
 		// Sprout entry (LoadConfig guarantees exactly one of sequence/sprout).
 		// Entry-level provider/model/genotype overrides ride a dedicated
-		// session's preferences: the governed sprout.run capability shapes
+		// session's preferences: the governed sprout.grow capability shapes
 		// each run from the preferences of the session it is bound to.
 		input := map[string]any{
 			"transcript": e.Sprout.Transcript,
@@ -437,7 +437,7 @@ func scheduledRunFirer(coreSvc core.Core, sessions *session.Manager, triggersDir
 		}
 
 		log.Printf("⏰ Schedule %q: growing a Sprout: %s", name, e.Sprout.Transcript)
-		result, err := coreSvc.Invoke(ctx, core.CapSproutRun, input)
+		result, err := coreSvc.Invoke(ctx, core.CapSproutGrow, input)
 		if err != nil {
 			log.Printf("❌ Schedule %q: Sprout withered: %v", name, err)
 			return err

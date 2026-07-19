@@ -56,7 +56,7 @@ type DelegationGrant struct {
 	// Subject is the trust-root identity exercising the grant.
 	Subject string
 	// OperationClasses allow-lists the delegable operation-classes (for this
-	// slice the governed capability names, e.g. "sprout.run"). Exact match;
+	// slice the governed capability names, e.g. "sprout.grow"). Exact match;
 	// no wildcards — a grant names precisely what it opens.
 	OperationClasses []string
 	// Substrates scopes the grant to named substrates. Exact match; a request

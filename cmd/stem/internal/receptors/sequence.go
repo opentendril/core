@@ -13,9 +13,9 @@ import (
 // family. Exactly like GenomeHandler, it translates
 // HTTP to and from the transport-free core.Core and holds no business logic.
 //
-// POST /v1/sequences/run executes synchronously and answers when the sequence
+// POST /v1/sequences/grow executes synchronously and answers when the sequence
 // finishes — the same semantics the MCP runSequence tool has always had. The
-// session-scoped async trigger (POST /v1/sessions/{sessionId}/sequences/run,
+// session-scoped async trigger (POST /v1/sessions/{sessionId}/sequences/grow,
 // 202 + runId) remains available on SessionsHandler for fire-and-forget runs.
 type SequenceHandler struct {
 	core core.Core
@@ -35,7 +35,7 @@ func NewSequenceHandler(coreSvc core.Core) *SequenceHandler {
 func (h *SequenceHandler) governedRoutes() []governedRoute {
 	return []governedRoute{
 		{"GET /v1/sequences", core.CapSequenceList, h.list},
-		{"POST /v1/sequences/run", core.CapSequenceRun, h.run},
+		{"POST /v1/sequences/grow", core.CapSequenceGrow, h.run},
 	}
 }
 
