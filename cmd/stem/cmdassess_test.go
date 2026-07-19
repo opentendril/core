@@ -223,6 +223,47 @@ func TestListOllamaModels(t *testing.T) {
 	})
 }
 
+func TestAssessHumanBytes(t *testing.T) {
+	cases := []struct {
+		in   uint64
+		want string
+	}{
+		{0, "0 B"},
+		{(1 << 20) - 1, "1048575 B"},
+		{1 << 20, "1 MiB"},
+		{(1 << 30) - 1, "1024 MiB"},
+		{1 << 30, "1.0 GiB"},
+		{24 * testGiB, "24.0 GiB"},
+	}
+	for _, tc := range cases {
+		if got := assessHumanBytes(tc.in); got != tc.want {
+			t.Errorf("assessHumanBytes(%d) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestPrintAssessReportEmpty(t *testing.T) {
+	origStdout := os.Stdout
+	t.Cleanup(func() { os.Stdout = origStdout })
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stdout = w
+	printAssessReport(assessReport{Hardware: assessHardware{CPUCores: 4}, Models: []assessModelFit{}})
+	w.Close()
+	os.Stdout = origStdout
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read captured stdout: %v", err)
+	}
+
+	if !strings.Contains(string(out), "No local models found.") {
+		t.Errorf("expected empty-report notice, got: %s", out)
+	}
+}
+
 func TestBuildAssessReport(t *testing.T) {
 	hw := assessHardware{
 		GPUs:              []assessGPU{{TotalBytes: 24 * testGiB, FreeBytes: 20 * testGiB}},
