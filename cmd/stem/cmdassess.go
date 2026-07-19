@@ -136,7 +136,7 @@ func buildAssessReport(hw assessHardware, models []assessModel, contextTokens in
 }
 
 // assessUsableVRAM pools VRAM across all GPUs (llama.cpp-style tensor split)
-// and subtracts the fixed OS/driver reserve once per GPU.
+// and subtracts the fixed OS/driver reserve once from the pooled total.
 func assessUsableVRAM(vramTotal uint64) uint64 {
 	if vramTotal <= assessVRAMReserveBytes {
 		return 0
