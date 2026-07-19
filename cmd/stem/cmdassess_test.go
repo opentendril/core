@@ -108,12 +108,23 @@ func TestParseNvidiaSMIMemory(t *testing.T) {
 		}
 	})
 
-	t.Run("garbage output errors", func(t *testing.T) {
-		if _, err := parseNvidiaSMIMemory("NVIDIA-SMI has failed\n"); err == nil {
-			t.Error("expected error for malformed output")
+	t.Run("garbage lines are skipped", func(t *testing.T) {
+		for _, input := range []string{"NVIDIA-SMI has failed\n", "abc, def\n"} {
+			gpus, err := parseNvidiaSMIMemory(input)
+			if err != nil {
+				t.Errorf("parseNvidiaSMIMemory(%q) returned error: %v", input, err)
+			}
+			if len(gpus) != 0 {
+				t.Errorf("parseNvidiaSMIMemory(%q) = %d GPUs, want 0", input, len(gpus))
+			}
 		}
-		if _, err := parseNvidiaSMIMemory("abc, def\n"); err == nil {
-			t.Error("expected error for non-numeric fields")
+
+		gpus, err := parseNvidiaSMIMemory("24576, 23001\n[N/A], [N/A]\n11264, 11000\n")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(gpus) != 2 {
+			t.Errorf("mixed batch: expected 2 GPUs with the [N/A] line skipped, got %d", len(gpus))
 		}
 	})
 }

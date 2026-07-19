@@ -222,15 +222,15 @@ func parseNvidiaSMIMemory(output string) ([]assessGPU, error) {
 		}
 		fields := strings.Split(line, ",")
 		if len(fields) != 2 {
-			return nil, fmt.Errorf("malformed nvidia-smi line: %q", line)
+			continue // skip malformed lines (e.g. "NVIDIA-SMI has failed")
 		}
 		totalMiB, err := strconv.ParseUint(strings.TrimSpace(fields[0]), 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("parse GPU memory total: %w", err)
+			continue // skip non-numeric fields (e.g. "[N/A]")
 		}
 		freeMiB, err := strconv.ParseUint(strings.TrimSpace(fields[1]), 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("parse GPU memory free: %w", err)
+			continue // skip non-numeric fields (e.g. "[N/A]")
 		}
 		gpus = append(gpus, assessGPU{TotalBytes: totalMiB << 20, FreeBytes: freeMiB << 20})
 	}
