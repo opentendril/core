@@ -1,6 +1,15 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"runtime"
+	"strings"
+	"testing"
+)
 
 const testGiB = uint64(1) << 30
 
@@ -197,5 +206,112 @@ func TestBuildAssessReport(t *testing.T) {
 	empty := buildAssessReport(assessHardware{CPUCores: 4, RAMAvailableBytes: 8 * testGiB}, nil, 8192)
 	if empty.Models == nil || len(empty.Models) != 0 {
 		t.Errorf("expected empty non-nil model list, got %#v", empty.Models)
+	}
+}
+
+func TestProbeAssessHardwareDegrades(t *testing.T) {
+	origGPUs := assessQueryGPUs
+	origMem := assessMemAvailable
+	t.Cleanup(func() {
+		assessQueryGPUs = origGPUs
+		assessMemAvailable = origMem
+	})
+
+	// Both probes fail: the command must degrade to a CPU-only, RAM-unknown view.
+	assessQueryGPUs = func(ctx context.Context) ([]assessGPU, error) {
+		return nil, fmt.Errorf("no nvidia-smi")
+	}
+	assessMemAvailable = func() (uint64, error) {
+		return 0, fmt.Errorf("no /proc")
+	}
+	hw := probeAssessHardware(context.Background())
+	if hw.CPUCores != runtime.NumCPU() {
+		t.Errorf("CPUCores = %d, want %d", hw.CPUCores, runtime.NumCPU())
+	}
+	if hw.VRAMTotalBytes != 0 {
+		t.Errorf("VRAMTotalBytes = %d, want 0", hw.VRAMTotalBytes)
+	}
+	if hw.RAMAvailableBytes != 0 {
+		t.Errorf("RAMAvailableBytes = %d, want 0", hw.RAMAvailableBytes)
+	}
+	if hw.RAMAvailableKnown {
+		t.Error("RAMAvailableKnown = true, want false when the RAM probe fails")
+	}
+	if len(hw.GPUs) != 0 {
+		t.Errorf("expected 0 GPUs, got %d", len(hw.GPUs))
+	}
+
+	// Both probes succeed: values must propagate.
+	assessQueryGPUs = func(ctx context.Context) ([]assessGPU, error) {
+		return []assessGPU{{TotalBytes: 24 * testGiB, FreeBytes: 20 * testGiB}}, nil
+	}
+	assessMemAvailable = func() (uint64, error) {
+		return 32 * testGiB, nil
+	}
+	hw = probeAssessHardware(context.Background())
+	if hw.VRAMTotalBytes != 24*testGiB {
+		t.Errorf("VRAMTotalBytes = %d, want %d", hw.VRAMTotalBytes, 24*testGiB)
+	}
+	if hw.VRAMFreeBytes != 20*testGiB {
+		t.Errorf("VRAMFreeBytes = %d, want %d", hw.VRAMFreeBytes, 20*testGiB)
+	}
+	if hw.RAMAvailableBytes != 32*testGiB {
+		t.Errorf("RAMAvailableBytes = %d, want %d", hw.RAMAvailableBytes, 32*testGiB)
+	}
+	if !hw.RAMAvailableKnown {
+		t.Error("RAMAvailableKnown = false, want true when the RAM probe succeeds")
+	}
+	if len(hw.GPUs) != 1 {
+		t.Errorf("expected 1 GPU, got %d", len(hw.GPUs))
+	}
+}
+
+func TestRunAssessCmdJSONWithDeadProvider(t *testing.T) {
+	origGPUs := assessQueryGPUs
+	origMem := assessMemAvailable
+	origList := assessListModels
+	origStdout := os.Stdout
+	t.Cleanup(func() {
+		assessQueryGPUs = origGPUs
+		assessMemAvailable = origMem
+		assessListModels = origList
+		os.Stdout = origStdout
+	})
+
+	assessQueryGPUs = func(ctx context.Context) ([]assessGPU, error) {
+		return []assessGPU{{TotalBytes: 24 * testGiB, FreeBytes: 20 * testGiB}}, nil
+	}
+	assessMemAvailable = func() (uint64, error) {
+		return 32 * testGiB, nil
+	}
+	assessListModels = func(ctx context.Context, baseURLOverride string) ([]assessModel, error) {
+		return nil, fmt.Errorf("connection refused")
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stdout = w
+	runAssessCmd(context.Background(), []string{"--json"})
+	w.Close()
+	os.Stdout = origStdout
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read captured stdout: %v", err)
+	}
+
+	var report struct {
+		Warnings []string `json:"warnings"`
+	}
+	if err := json.Unmarshal(out, &report); err != nil {
+		t.Fatalf("unmarshal captured JSON: %v\noutput: %s", err, out)
+	}
+	if len(report.Warnings) == 0 {
+		t.Fatalf("expected a warning about the failed model listing, got none; output: %s", out)
+	}
+	if !strings.Contains(report.Warnings[0], "could not list local models") ||
+		!strings.Contains(report.Warnings[0], "connection refused") {
+		t.Errorf("warning does not mention the listing failure: %q", report.Warnings[0])
 	}
 }
