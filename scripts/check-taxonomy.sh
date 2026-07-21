@@ -31,10 +31,23 @@
 # least one user-facing command name). This stops new drift; it does not rewrite
 # history.
 #
-# Usage: scripts/check-taxonomy.sh [base-ref]   (default: origin/main)
+# Two modes:
+#   scripts/check-taxonomy.sh [base-ref]        lint ADDED lines of a diff (default: origin/main)
+#   scripts/check-taxonomy.sh --text FILE       lint a block of prose in full
+#
+# The --text mode exists because the drift that prompted this guard lived mostly
+# in PULL REQUEST DESCRIPTIONS, which no diff-based check can see. The whole
+# point of the guard is that the artifact is checked rather than the author
+# trusted; prose written about the organism is an artifact too.
 set -euo pipefail
 
-base="${1:-origin/main}"
+mode="diff"
+if [ "${1:-}" = "--text" ]; then
+  mode="text"
+  text_file="${2:?--text requires a file}"
+else
+  base="${1:-origin/main}"
+fi
 
 # Banned term -> what to use instead. Kept deliberately short: these are the
 # terms that have actually drifted, not every word standard IT owns. Add to it
@@ -69,8 +82,15 @@ exclude_paths=(
   ':!INTENT-TRANSLATION.md'
 )
 
-added="$(git diff "${base}...HEAD" -- "${targets[@]}" "${exclude_paths[@]}" \
-    | grep -E '^\+' | grep -Ev '^\+\+\+' || true)"
+if [ "${mode}" = "text" ]; then
+  # Strip fenced code blocks and inline code before checking: a transcript of a
+  # command that actually ran is evidence, and rewriting it would be falsifying
+  # the record rather than correcting terminology.
+  added="$(sed '/^```/,/^```/d' "${text_file}" | sed 's/`[^`]*`//g')"
+else
+  added="$(git diff "${base}...HEAD" -- "${targets[@]}" "${exclude_paths[@]}" \
+      | grep -E '^\+' | grep -Ev '^\+\+\+' || true)"
+fi
 
 status=0
 for term in "${!replacements[@]}"; do
@@ -95,4 +115,8 @@ if [ "${status}" -ne 0 ]; then
   exit 1
 fi
 
-echo "✅ No standard IT vocabulary added inside the organism."
+if [ "${mode}" = "text" ]; then
+  echo "✅ No standard IT vocabulary in the supplied text."
+else
+  echo "✅ No standard IT vocabulary added inside the organism."
+fi

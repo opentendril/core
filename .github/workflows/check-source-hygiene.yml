@@ -84,3 +84,14 @@ jobs:
         run: |
           git fetch --no-tags origin "${{ github.base_ref }}"
           bash scripts/check-taxonomy.sh "origin/${{ github.base_ref }}"
+
+      # The drift this guard exists for lived mostly in pull request
+      # DESCRIPTIONS, which no diff-based check can see. The body is untrusted
+      # input, so it travels through the environment and is never interpolated
+      # into the shell.
+      - name: No standard IT vocabulary in the pull request description
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s' "$PR_BODY" > "${RUNNER_TEMP}/pr-body.md"
+          bash scripts/check-taxonomy.sh --text "${RUNNER_TEMP}/pr-body.md"
