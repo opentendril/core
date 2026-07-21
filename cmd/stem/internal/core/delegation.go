@@ -183,7 +183,7 @@ func (a *DelegationAuthorizer) Authorize(request DelegationRequest) DelegationDe
 	}
 
 	return delegationDenied(fmt.Sprintf(
-		"no active grant covers pollen %q, operation-class %q, substrate %q",
+		"no active grant covers Pollen %q, operation-class %q, substrate %q",
 		pollen, operationClass, substrate))
 }
 
