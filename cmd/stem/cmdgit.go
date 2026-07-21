@@ -21,9 +21,12 @@ import (
 // pull request — the full delegated ladder, deliberately narrow beyond it (no
 // delete, no rename, no merge, no arbitrary checkout).
 //
-// A CLI invocation is never delegated (there is no Pollen); the
-// deny-closed attribution rule applies either way — a substrate without a
-// configured commit identity is refused before any git command runs.
+// A command line invocation is delegated only when a Pollen is declared
+// (OPENTENDRIL_POLLEN): the operation-class is then authorised against the
+// grants, audited, and run in that Pollen's isolated workspace. Without one it
+// is a Botanist at a terminal, working in their own checkout. The deny-closed
+// attribution rule applies either way — a substrate without a configured commit
+// identity is refused before any git command runs.
 func runGitCmd(ctx context.Context, args []string) {
 	if len(args) == 0 {
 		printGitUsage()
@@ -55,6 +58,15 @@ func runGitCmd(ctx context.Context, args []string) {
 	if origin, _ := input["origin"].(string); strings.TrimSpace(origin) == "" {
 		input["origin"] = session.OriginCLI
 	}
+
+	// A declared Pollen turns this into a delegated invocation: the
+	// operation-class is authorised against the grants, the decision is
+	// audited, and the work runs in that Pollen's isolated workspace. With no
+	// Pollen this is a Botanist at a terminal and nothing changes.
+	delegation := newCLIDelegation(ctx)
+	defer delegation.Close()
+	substrate, _ := input["substrate"].(string)
+	ctx = delegation.Authorize(ctx, command.capability, substrate)
 
 	svc, err := buildGitCore(ctx)
 	if err != nil {
@@ -623,7 +635,7 @@ func printGitStatus(status core.GitStatusResult) {
 	}
 	fmt.Fprintf(os.Stderr, " · default: %s (%s)\n", defaultBranch, status.DefaultBranchSource)
 	if status.Isolated {
-		fmt.Fprintf(os.Stderr, "   workspace: isolated for pollen %q at %s\n", status.Pollen, status.Workspace)
+		fmt.Fprintf(os.Stderr, "   workspace: isolated for Pollen %q at %s\n", status.Pollen, status.Workspace)
 	}
 
 	if status.Upstream == "" {
