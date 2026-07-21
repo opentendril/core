@@ -31,6 +31,10 @@
 # least one user-facing command name). This stops new drift; it does not rewrite
 # history.
 #
+# Discussing a banned term is not using it. Write it in code formatting — `agent`
+# — when the term itself is the subject of the sentence; inline code and fenced
+# blocks are stripped before checking, so a citation reads correctly and passes.
+#
 # Two modes:
 #   scripts/check-taxonomy.sh [base-ref]        lint ADDED lines of a diff (default: origin/main)
 #   scripts/check-taxonomy.sh --text FILE       lint a block of prose in full
