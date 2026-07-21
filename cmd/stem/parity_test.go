@@ -1644,12 +1644,12 @@ func TestBehavioralParity_SproutRun(t *testing.T) {
 	ctx := context.Background()
 
 	// sprout.grow is a delegated operation-class, and the MCP surface
-	// authorizes those per-invocation against the bind-time subject and the
+	// authorizes those per-invocation against the bind-time pollen and the
 	// active grants. Bind a covering grant so this test stays about adapter
 	// translation; the deny-closed governance itself is covered in the
 	// receptors package.
 	gate := &receptors.DelegationGate{Authorizer: core.NewDelegationAuthorizer([]core.DelegationGrant{{
-		Subject:          "parity-agent",
+		Pollen:           "parity-agent",
 		OperationClasses: []string{core.CapSproutGrow},
 		Substrates:       []string{"/workspaces/core"},
 	}})}

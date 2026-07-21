@@ -15,14 +15,14 @@ import (
 	"github.com/opentendril/opentendril/cmd/stem/internal/session"
 )
 
-// envDelegationSubject names the environment variable that binds this MCP
-// stdio server process to one delegation subject at startup. The subject is a
+// envPollen names the environment variable that binds this MCP
+// stdio server process to one Pollen at startup. The pollen is a
 // property of the trusted MCP connection — never declared per-invocation in
 // tool arguments — so every delegated-class invocation on this connection is
-// authorized as that one subject against the active grants. Unset means no
-// subject is bound and every delegated capability is denied over MCP
+// authorized as that one Pollen against the active grants. Unset means no
+// pollen is bound and every delegated capability is denied over MCP
 // (deny-closed).
-const envDelegationSubject = "OPENTENDRIL_DELEGATION_SUBJECT"
+const envPollen = "OPENTENDRIL_POLLEN"
 
 func runMCPCmd(ctx context.Context, args []string) {
 	fmt.Fprintln(os.Stderr, "🚀 OpenTendril MCP Stdio Server initializing...")
@@ -93,15 +93,15 @@ func runMCPCmd(ctx context.Context, args []string) {
 		Bus:        bus,
 	}
 
-	// The delegation subject is bound once, at startup, as a property of this
+	// The Pollen is bound once, at startup, as a property of this
 	// trusted stdio connection — a tool argument can never self-declare it.
-	delegationSubject := strings.TrimSpace(os.Getenv(envDelegationSubject))
-	if delegationSubject != "" {
-		fmt.Fprintf(os.Stderr, "🔏 Delegation subject %q bound from %s: delegated capabilities are authorized against the loaded grants\n", delegationSubject, envDelegationSubject)
+	pollen := strings.TrimSpace(os.Getenv(envPollen))
+	if pollen != "" {
+		fmt.Fprintf(os.Stderr, "🔏 Pollen %q bound from %s: delegated capabilities are authorized against the loaded grants\n", pollen, envPollen)
 	} else {
-		fmt.Fprintf(os.Stderr, "🔏 No delegation subject bound (%s is unset): delegated capabilities are denied over MCP (deny-closed)\n", envDelegationSubject)
+		fmt.Fprintf(os.Stderr, "🔏 No Pollen bound (%s is unset): delegated capabilities are denied over MCP (deny-closed)\n", envPollen)
 	}
-	handler = handler.WithDelegation(delegationGate, delegationSubject)
+	handler = handler.WithDelegation(delegationGate, pollen)
 
 	scanner := bufio.NewScanner(os.Stdin)
 

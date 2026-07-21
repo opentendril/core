@@ -114,9 +114,9 @@ func resolveGenerated(t *testing.T, opts gitSetupOptions) conductor.ResolvedCred
 }
 
 // TestRenderGrantsYAMLParses proves the generated grant is valid control-plane
-// YAML for the named subject and substrate.
+// YAML for the named Pollen and substrate.
 func TestRenderGrantsYAMLParses(t *testing.T) {
-	opts := gitSetupOptions{substrate: "r", grantSubject: "claude"}
+	opts := gitSetupOptions{substrate: "r", grantPollen: "claude"}
 	out := renderGrantsYAML(opts)
 	for _, want := range []string{"grants:", "claude:", "operationClasses: [git.status, git.branch.list, git.branch, git.commit, git.push, git.pr]", "substrates: [r]"} {
 		if !strings.Contains(out, want) {
@@ -163,9 +163,9 @@ func TestUpsertMergesMultipleConnections(t *testing.T) {
 	}
 }
 
-// TestUpsertGrantUnionsSubstrates proves granting an existing agent access to a
+// TestUpsertGrantUnionsSubstrates proves granting an existing Pollinator access to a
 // second repo adds the substrate to its list rather than replacing it, and a
-// distinct subject is kept separate.
+// distinct pollen is kept separate.
 func TestUpsertGrantUnionsSubstrates(t *testing.T) {
 	dir := t.TempDir()
 	tendrilDir := filepath.Join(dir, ".tendril")
@@ -175,9 +175,9 @@ func TestUpsertGrantUnionsSubstrates(t *testing.T) {
 	path := filepath.Join(tendrilDir, "grants.yaml")
 
 	for _, o := range []gitSetupOptions{
-		{substrate: "repo1", grantSubject: "claude"},
-		{substrate: "repo2", grantSubject: "claude"},
-		{substrate: "repo1", grantSubject: "codex"},
+		{substrate: "repo1", grantPollen: "claude"},
+		{substrate: "repo2", grantPollen: "claude"},
+		{substrate: "repo1", grantPollen: "codex"},
 	} {
 		if err := upsertGrants(path, o); err != nil {
 			t.Fatalf("upsert grant %+v: %v", o, err)
@@ -188,38 +188,38 @@ func TestUpsertGrantUnionsSubstrates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load grants: %v", err)
 	}
-	bySubject := map[string][]string{}
-	classesBySubject := map[string][]string{}
+	byPollen := map[string][]string{}
+	classesByPollen := map[string][]string{}
 	for _, g := range grants {
-		bySubject[g.Subject] = g.Substrates
-		classesBySubject[g.Subject] = g.OperationClasses
+		byPollen[g.Pollen] = g.Substrates
+		classesByPollen[g.Pollen] = g.OperationClasses
 	}
 
 	// Every setup run grants the full governed loop — commit, push, and the
-	// pull request that finishes it — so an authorised agent never has to
+	// pull request that finishes it — so an authorised Pollinator never has to
 	// leave Tendril for the last mile. Unioning must not duplicate them.
-	for subject, classes := range classesBySubject {
+	for pollen, classes := range classesByPollen {
 		if len(classes) != 6 {
-			t.Errorf("%s operation-classes = %v, want exactly the six granted git classes unioned once", subject, classes)
+			t.Errorf("%s operation-classes = %v, want exactly the six granted git classes unioned once", pollen, classes)
 		}
 		// git.prune is deliberately absent: every other operation on the
 		// ladder is recoverable, deletion is not, so the destructive class is
-		// opt-in rather than handed to every agent by default.
+		// opt-in rather than handed to every Pollinator by default.
 		for _, unwanted := range classes {
 			if unwanted == core.CapGitPrune {
-				t.Errorf("%s was granted %s by default — the destructive class must be opt-in", subject, core.CapGitPrune)
+				t.Errorf("%s was granted %s by default — the destructive class must be opt-in", pollen, core.CapGitPrune)
 			}
 		}
 		for _, want := range []string{core.CapGitStatus, core.CapGitBranchList, core.CapGitBranch, core.CapGitCommit, core.CapGitPush, core.CapGitPR} {
 			if !contains(classes, want) {
-				t.Errorf("%s operation-classes = %v, want %s included", subject, classes, want)
+				t.Errorf("%s operation-classes = %v, want %s included", pollen, classes, want)
 			}
 		}
 	}
-	if got := bySubject["claude"]; len(got) != 2 || !contains(got, "repo1") || !contains(got, "repo2") {
+	if got := byPollen["claude"]; len(got) != 2 || !contains(got, "repo1") || !contains(got, "repo2") {
 		t.Errorf("claude substrates = %v, want [repo1 repo2] unioned", got)
 	}
-	if got := bySubject["codex"]; len(got) != 1 || got[0] != "repo1" {
+	if got := byPollen["codex"]; len(got) != 1 || got[0] != "repo1" {
 		t.Errorf("codex substrates = %v, want [repo1]", got)
 	}
 }

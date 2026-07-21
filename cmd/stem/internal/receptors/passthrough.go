@@ -16,7 +16,7 @@ import (
 //
 // POST /v1/passthrough/run executes one bounded command synchronously inside
 // a network-sealed Terrarium. Delegated invocations (marked with
-// DelegationSubjectHeader) are gated per-invocation by the delegation
+// PollenHeader) are gated per-invocation by the delegation
 // authorizer; a request without the marker follows the plain
 // bearer-authenticated path with deny-all egress (no grant, no allow-list).
 type PassthroughHandler struct {
@@ -91,9 +91,9 @@ func (h *PassthroughHandler) run(w http.ResponseWriter, r *http.Request) {
 	// the decode above can never have populated it. It is set below — and only
 	// below — from an authorized delegation grant. A non-delegated invocation
 	// keeps the empty list: deny-all egress with zero configuration.
-	if subject := DelegatedSubject(r); subject != "" {
+	if pollen := DelegatedPollen(r); pollen != "" {
 		decision := h.delegation.Authorize(core.DelegationRequest{
-			Subject:        subject,
+			Pollen:         pollen,
 			OperationClass: core.CapPassthroughRun,
 			Substrate:      strings.TrimSpace(req.Substrate),
 		})

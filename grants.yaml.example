@@ -1,15 +1,15 @@
 # Example control-plane grants. Copy to .tendril/grants.yaml (the Stem's own
 # directory — never inside a cloned repository, so a repo cannot widen its own
-# access). A grant authorises one agent subject to run specific git operations
+# access). A grant authorises one Pollen to run specific git operations
 # on specific substrates. No grant = denied (secure default).
 
 grants:
-  claude:                                  # the agent's delegation subject
+  claude:                                  # the Pollen
     # git.prune is deliberately NOT here: it deletes branches, and every other
-    # operation is recoverable. Add it knowingly, per agent, if you want one
+    # operation is recoverable. Add it knowingly, per pollen, if you want one
     # cleaning up after merges.
     operationClasses: [git.status, git.branch.list, git.branch, git.commit, git.push, git.pr]
     substrates: [myrepo]
-    # egress: [github.com]                 # optional: hosts the Stem may fetch for this subject
+    # egress: [github.com]                 # optional: hosts the Stem may fetch for this pollen
     # expires: 2027-01-01                  # optional: RFC 3339 timestamp or YYYY-MM-DD
     # confirmAbove: { impact: high }       # optional: escalate high-impact operations back to a human

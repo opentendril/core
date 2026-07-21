@@ -27,7 +27,8 @@ import (
 const DelegationGrantsFilename = "grants.yaml"
 
 // delegationGrantsFile maps .tendril/grants.yaml. Grants are keyed by
-// subject — the agent/session/mesh trust-root identity exercising them.
+// pollen — the Pollinator / Phytomer / mesh trust-root identity
+// exercising them.
 type delegationGrantsFile struct {
 	Grants map[string]delegationGrantSpec `yaml:"grants"`
 }
@@ -75,16 +76,16 @@ func LoadDelegationGrants(tendrilDir string) ([]DelegationGrant, error) {
 	}
 
 	grants := make([]DelegationGrant, 0, len(file.Grants))
-	for subject, spec := range file.Grants {
-		grant, err := grantFromSpec(subject, spec)
+	for pollen, spec := range file.Grants {
+		grant, err := grantFromSpec(pollen, spec)
 		if err != nil {
 			return nil, fmt.Errorf("delegation grants %s: %w", path, err)
 		}
 		grants = append(grants, grant)
 	}
 
-	// Map iteration is unordered; sort by subject so loading is deterministic.
-	sort.Slice(grants, func(i, j int) bool { return grants[i].Subject < grants[j].Subject })
+	// Map iteration is unordered; sort by pollen so loading is deterministic.
+	sort.Slice(grants, func(i, j int) bool { return grants[i].Pollen < grants[j].Pollen })
 	return grants, nil
 }
 
@@ -92,23 +93,23 @@ func LoadDelegationGrants(tendrilDir string) ([]DelegationGrant, error) {
 // name at least one operation-class and one substrate: a grant that can match
 // nothing is a configuration mistake, surfaced at load rather than silently
 // carried.
-func grantFromSpec(subject string, spec delegationGrantSpec) (DelegationGrant, error) {
-	subject = strings.TrimSpace(subject)
-	if subject == "" {
-		return DelegationGrant{}, fmt.Errorf("grant with an empty subject")
+func grantFromSpec(pollen string, spec delegationGrantSpec) (DelegationGrant, error) {
+	pollen = strings.TrimSpace(pollen)
+	if pollen == "" {
+		return DelegationGrant{}, fmt.Errorf("grant with an empty pollen")
 	}
 
 	operationClasses := trimNonEmpty(spec.OperationClasses)
 	if len(operationClasses) == 0 {
-		return DelegationGrant{}, fmt.Errorf("grant for subject %q names no operationClasses", subject)
+		return DelegationGrant{}, fmt.Errorf("grant for pollen %q names no operationClasses", pollen)
 	}
 	substrates := trimNonEmpty(spec.Substrates)
 	if len(substrates) == 0 {
-		return DelegationGrant{}, fmt.Errorf("grant for subject %q names no substrates", subject)
+		return DelegationGrant{}, fmt.Errorf("grant for pollen %q names no substrates", pollen)
 	}
 
 	grant := DelegationGrant{
-		Subject:          subject,
+		Pollen:           pollen,
 		OperationClasses: operationClasses,
 		Substrates:       substrates,
 		Egress:           trimNonEmpty(spec.Egress),
@@ -117,7 +118,7 @@ func grantFromSpec(subject string, spec delegationGrantSpec) (DelegationGrant, e
 	if raw := strings.TrimSpace(spec.Expires); raw != "" {
 		expires, err := parseDelegationExpiry(raw)
 		if err != nil {
-			return DelegationGrant{}, fmt.Errorf("grant for subject %q: %w", subject, err)
+			return DelegationGrant{}, fmt.Errorf("grant for pollen %q: %w", pollen, err)
 		}
 		grant.Expires = expires
 	}
@@ -128,8 +129,8 @@ func grantFromSpec(subject string, spec delegationGrantSpec) (DelegationGrant, e
 			grant.ConfirmAboveImpact = impact
 		default:
 			return DelegationGrant{}, fmt.Errorf(
-				"grant for subject %q: confirmAbove.impact %q is not one of low, medium, high",
-				subject, spec.ConfirmAbove.Impact)
+				"grant for pollen %q: confirmAbove.impact %q is not one of low, medium, high",
+				pollen, spec.ConfirmAbove.Impact)
 		}
 	}
 

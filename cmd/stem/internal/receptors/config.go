@@ -17,7 +17,7 @@ import (
 
 // AuthMiddleware wraps a handler to require an ADMIN_TOKEN. Bearer presence
 // authenticates the caller; *delegated* invocations (marked with
-// DelegationSubjectHeader) are additionally gated by the delegation
+// PollenHeader) are additionally gated by the delegation
 // authorizer. These config routes expose no delegable operation-class, so a
 // delegated-marked request is denied outright rather than silently executed
 // as if it were non-delegated.
@@ -31,8 +31,8 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 		}
-		if subject := DelegatedSubject(r); subject != "" {
-			log.Printf("🚫 Delegation denied for subject %q: %s exposes no delegable operation-class", subject, r.URL.Path)
+		if pollen := DelegatedPollen(r); pollen != "" {
+			log.Printf("🚫 Delegation denied for pollen %q: %s exposes no delegable operation-class", pollen, r.URL.Path)
 			http.Error(w, "delegation denied: this endpoint exposes no delegable operation-class", http.StatusForbidden)
 			return
 		}
@@ -40,20 +40,20 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// DelegationSubjectHeader marks an HTTP request as a *delegated* capability
-// invocation and names the trust-root subject exercising a delegation grant.
+// PollenHeader marks an HTTP request as a *delegated* capability
+// invocation and names the trust-root pollen exercising a delegation grant.
 // A request without this header is not delegated: it follows today's
 // bearer-authenticated path untouched, whether or not any grants exist. The
-// subject is a claim scoped by the already-required bearer key — a grant only
+// pollen is a claim scoped by the already-required bearer key — a grant only
 // ever narrows what an authenticated caller may run delegated, never widens
-// what the bearer key already allows (short-lived scoped subject tokens are a
+// what the bearer key already allows (short-lived scoped pollen tokens are a
 // later slice).
-const DelegationSubjectHeader = "X-OpenTendril-Delegation-Subject"
+const PollenHeader = "X-OpenTendril-Pollen"
 
-// DelegatedSubject returns the delegated subject named by the request, or an
+// DelegatedPollen returns the delegated pollen named by the request, or an
 // empty string when the request is not a delegated invocation.
-func DelegatedSubject(r *http.Request) string {
-	return strings.TrimSpace(r.Header.Get(DelegationSubjectHeader))
+func DelegatedPollen(r *http.Request) string {
+	return strings.TrimSpace(r.Header.Get(PollenHeader))
 }
 
 // DelegationGate couples the Core's grant authorizer with the audit lane:
@@ -86,13 +86,13 @@ func (g *DelegationGate) Authorize(request core.DelegationRequest) core.Delegati
 // attempt must never silently run as a plain invocation).
 func (g *DelegationGate) Middleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		subject := DelegatedSubject(r)
-		if subject == "" {
+		pollen := DelegatedPollen(r)
+		if pollen == "" {
 			next(w, r)
 			return
 		}
 		reason := "this endpoint exposes no delegable operation-class"
-		g.audit(core.DelegationRequest{Subject: subject}, core.DelegationDecision{Reason: reason})
+		g.audit(core.DelegationRequest{Pollen: pollen}, core.DelegationDecision{Reason: reason})
 		http.Error(w, "delegation denied: "+reason, http.StatusForbidden)
 	}
 }
@@ -109,7 +109,7 @@ func (g *DelegationGate) audit(request core.DelegationRequest, decision core.Del
 		eventType = eventbus.EventDelegationAuthorized
 	}
 	data := map[string]any{
-		"subject":        request.Subject,
+		"pollen":         request.Pollen,
 		"operationClass": request.OperationClass,
 		"substrate":      request.Substrate,
 		"authorized":     decision.Authorized,

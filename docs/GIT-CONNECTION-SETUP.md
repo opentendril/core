@@ -1,12 +1,13 @@
-# Git connection setup — get an agent committing through Tendril
+# Git connection setup — get a Pollinator committing through Tendril
 
 **The problem this solves:** every LLM wastes time and tokens guessing how to
 authenticate to GitHub (which token? SSH? gh? App?) and often gets it wrong.
-Tendril gives an agent **one pre-configured, correct git method**. The agent
+Tendril gives a **Pollinator** — an external requester, human or Mycorrhizal —
+**one pre-configured, correct git method**. It
 calls `git.status` / `git.branch` / `git.commit` / `git.push` / `git.pr`, and can
 tidy up afterwards with `git.branch.list` / `git.prune`; it never touches
 credentials. You
-configure the connection **once**, on any machine, and every agent you authorise
+configure the connection **once**, on any machine, and every pollen you authorise
 inherits it.
 
 This guide is deliberately linear: follow it top to bottom.
@@ -16,18 +17,18 @@ This guide is deliberately linear: follow it top to bottom.
 ## Quick start — one command
 
 The fastest path is the built-in setup command. It writes the connection config
-and the grant, and prints the agent's MCP block:
+and the grant, and prints the subject's Model Context Protocol block:
 
 ```bash
 # GitHub App (recommended — commits signed by GitHub, no key material):
 tendril git setup --substrate myrepo --repo owner/repo \
-  --app-id 123456 --key ~/.tendril/app.pem --grant-subject claude
+  --app-id 123456 --key ~/.tendril/app.pem --grant-pollen claude
 
 # Fine-grained token + dedicated GPG key:
 tendril git setup --posture pat --substrate myrepo --repo owner/repo \
   --token-env TENDRIL_GITHUB_PAT --sign-key <gpg-key-id> \
   --identity-name "Tendril Bot" --identity-email bot@your-domain \
-  --grant-subject claude
+  --grant-pollen claude
 
 # Check a connection's credentials are in place (makes no commit):
 tendril git setup --verify --substrate myrepo
@@ -44,7 +45,7 @@ reference, and the repository ships `substrates.yaml.example` /
 - A **Substrate** is a repository.
 - A **Nodule** is a *git connection* — identity + auth + signing — defined once
   and shared by every repository that uses it (one Nodule → many Substrates).
-- A **grant** says which agent (subject) may run which git operation on which
+- A **grant** says which Pollinator (by its Pollen) may run which git operation on which
   Substrate. No grant → no access (deny-closed).
 - The **Stem** (Tendril's daemon) holds the secrets and does the git work.
   **Sprouts are network-sealed and never push.**
@@ -165,47 +166,48 @@ instead of a path. **That `.pem` + App ID is the whole per-machine setup.**
 
 ---
 
-## Grant an agent access (the security gate)
+## Authorise a Pollinator (the security gate)
 
-Access is **two keys**: the agent must (a) be *connected* to Tendril and (b)
+Access is **two keys**: the Pollinator must (a) be *connected* to Tendril and (b)
 have a *grant*. Missing either → denied.
 
-### 1. Authorise the subject — `.tendril/grants.yaml` (Stem-owned, never inside a repo checkout)
+### 1. Authorise the Pollinator — `.tendril/grants.yaml` (Stem-owned, never inside a repo checkout)
 
 ```yaml
 grants:
-  claude:                                             # the agent's subject identity
+  claude:                                             # the Pollen
     operationClasses: [git.status, git.branch, git.commit, git.push, git.pr]  # commit-only? drop the rest
     substrates: [opentendril]
     expires: 2027-01-01
 ```
 
-No grant → every delegated call from that subject is denied and audited. Each
-operation is its own class and confers nothing else: a subject granted
+No grant → every delegated call from that pollen is denied and audited. Each
+operation is its own class and confers nothing else: a Pollinator granted
 `git.commit` and `git.push` still cannot open a pull request or create a
 branch, `git.pr` never pushes on your behalf, and `git.branch` never commits.
 `git.status` is gated too: read-only does not mean ungated, since a status
 response names branches and changed file paths.
 
-### 2. Configure the agent's MCP connection
+### 2. Configure the subject's Model Context Protocol connection
 
-Point the agent at Tendril's MCP server and bind its subject (the subject is set
-by the trusted launch config — an agent can never self-declare it):
+Point the Pollinator at Tendril's Model Context Protocol server and bind its
+pollen (the Pollinator is set by the trusted launch configuration — a Pollinator can
+never self-declare it):
 
 ```json
 { "mcpServers": { "opentendril": {
   "command": "tendril", "args": ["serve", "mcp", "stdio"],
-  "env": { "OPENTENDRIL_DELEGATION_SUBJECT": "claude" }
+  "env": { "OPENTENDRIL_POLLEN": "claude" }
 }}}
 ```
 
-Give Codex / Grok / Antigravity the same block with their own subject name and a
+Give Codex / Grok / Antigravity the same block with their own pollen name and a
 matching grant.
 
 ### Securing the instance itself
 
 - **MCP (stdio):** the gate is your machine + the launch config that binds the
-  subject, plus the grant. Adequate for a personal machine.
+  pollen, plus the grant. Adequate for a personal machine.
 - **REST / WebSocket:** set `ADMIN_TOKEN`; callers must then send
   `Authorization: Bearer <token>`. Combined with grants this is the connect +
   authorise two-key gate.
@@ -240,17 +242,17 @@ A branch is deleted only when **all** of these hold:
 | tip **never pushed** | ❌ local-only work no remote check can vouch for |
 | tip pushed, **no pull request** | ❌ no evidence either way |
 | the **default** or **current** branch | ❌ never |
-| **checked out by another agent** | ❌ someone is working on it |
+| **checked out by another subject** | ❌ someone is working on it |
 | no GitHub credential on the connection | ❌ nothing is deletable without evidence |
 
 `prune` **reports by default** and deletes only with `--confirm`. That is the
-opposite of the usual convention, deliberately: for an operation an agent might
+opposite of the usual convention, deliberately: for an operation a Pollinator might
 invoke after misreading its instructions, the safe path should be the one taken
 by accident. Every deletion prints the branch's tip commit, so an unwanted prune
 is a one-line `git branch <name> <head>` away.
 
 **`git.prune` is not in the default grant.** Every other operation on the ladder
-can be undone; deleting a branch cannot. Add it per agent, knowingly:
+can be undone; deleting a branch cannot. Add it per pollen, knowingly:
 
 ```yaml
 grants:
@@ -260,30 +262,36 @@ grants:
 
 ---
 
-## Several agents at once
+## Several Pollinators at once
 
-Tendril is built for simultaneous work, so **each authorised agent gets its own
+Tendril is built for simultaneous work, so **each authorised pollen gets its own
 isolated workspace** for a repository — a private git worktree, created on first
-use, keyed to that agent's subject.
+use, keyed to that pollen.
 
-This matters more than it sounds. Without it, two agents sharing one checkout
+This matters more than it sounds. Without it, two pollen sharing one checkout
 will commit each other's half-finished files, onto each other's branches, under
 each other's identity, with no error anywhere. With it:
 
-- each agent's commits contain only that agent's work, correctly attributed;
-- each agent branches from the repository's branch, not from whatever another
-  agent happened to be doing;
-- both agents' branches are still visible in your repository, so pushing,
+- each subject's commits contain only that subject's work, correctly attributed;
+- each Pollinator branches from the repository's branch, not from whatever another
+  pollen happened to be doing;
+- both pollen' branches are still visible in your repository, so pushing,
   pull requests, and your own review work exactly as before (a worktree shares
   the repository's object store).
 
-You do not configure anything for this. The agent's subject — the one bound in
+You do not configure anything for this. The pollen — the one bound in
 its MCP block — is the key, so isolation follows the same identity your grants
 already use. `tendril git status` reports which workspace it is describing.
 
-A fresh workspace starts on **no branch**, deliberately: it is the agent's job
-to create a feature branch before committing, and `git.status` says so up front
-rather than letting a commit strand work on a detached head.
+A workspace arrives **already on its own branch**, cut from the repository's
+real default branch. The pollen is never asked which branch to work on, so it
+cannot pick the wrong one — committing to your default branch is not refused,
+it is impossible, because no delegated workspace is ever on it.
+
+Those branches are **owned**: Tendril records each one when it creates it and
+takes it away again when it is finished. A run that produces nothing takes its
+branch with it; a branch carrying commits is always kept, published or not.
+Nothing Tendril creates is left for you to clean up later.
 
 Running `tendril git ...` yourself, at a terminal, is not delegated — it uses
 your own checkout, as you would expect.
@@ -298,7 +306,7 @@ without touching your files, prefer `mode: managed` — its own clone.
 
 ## Look before acting — `tendril git status`
 
-Every guardrail below exists because an agent guessed something it could not
+Every guardrail below exists because a Pollinator guessed something it could not
 see. `git.status` is how it sees instead: one read-only, offline call that
 reports what git says *and* what Tendril will do about it.
 
@@ -384,7 +392,7 @@ before branching" recovery).
 ## Opening pull requests — the branch rules Tendril enforces
 
 `tendril git pr` finishes the loop: commit → push → pull request, all through
-the same connection, so an agent never has to guess at credentials or shell out
+the same connection, so a Pollinator never has to guess at credentials or shell out
 to another tool for the last mile.
 
 ```bash
@@ -450,5 +458,5 @@ before you ever see it.
 
 The connection is a movable artifact: copy `substrates.yaml`, `.tendril/`
 (grants + App `.pem`), and your `.env` secrets to the new machine, install
-`tendril`, and the same agents work with the same grants. No local toolchain
+`tendril`, and the same pollen work with the same grants. No local toolchain
 sprawl, no re-guessing auth.

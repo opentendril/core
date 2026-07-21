@@ -145,6 +145,49 @@ growth cycle:
     and *studies* it, working from outside the plant and observing through the
     **Greenhouse**. ("Gardener" names the tending activity; the Botanist is the
     person.)
+*   **Pollinator** — an **external requester** that reaches *in* and asks the
+    organism for governed work: a **Botanist** at a terminal, or an external
+    **Mycorrhizal** mind connected over a governed interface. In botany a
+    pollinator is not part of the plant — it arrives, exchanges, and leaves, and
+    what it brings is what precedes **Fruit**. Here it brings intent and receives
+    a deliverable, and the chain reads exactly as botany does: *Pollinator →
+    growth → Fruit*.
+
+    A Pollinator is identified by its **Pollen** — the bound identity
+    a grant names — and may run only the operation-classes it has been granted;
+    no grant, no access. The mutualism is real but not assumed: pollinators are
+    also how disease travels between plants, which is precisely why the grant
+    exists.
+
+    **Direction distinguishes it from a Symbiotic Nodule.** A Nodule is an
+    external *service* the organism reaches **out** to (GitHub's interface, a
+    cloud provider). A Pollinator reaches **in**. Same boundary, opposite
+    direction — and the security posture differs accordingly.
+
+    **This is the word that replaces "agent"** for an external requester. Note
+    what it is *not*: not a **Sprout** (Tendril's own ephemeral, network-sealed
+    worker), and not the **Mycorrhizal Network** itself (the reasoning mind,
+    which a Pollinator may *be* or may merely *use*). Collapsing those into one
+    word is exactly the imprecision the taxonomy exists to prevent — a Sprout is
+    sealed off from the network, a Pollinator is the thing being granted mediated
+    access to it.
+*   **Ramet** — one **running Tendril instance**: a single individual growing on
+    one **Terroir**. In botany a ramet is one member of a clonal colony — a
+    physically separate plant that is genetically identical to its siblings —
+    while the **Genet** is the genetic individual they all are. That is exactly
+    the mesh: many Ramets on many machines, one Genome between them, each able to
+    live or die independently.
+
+    It replaces "node", "deployment", "instance" and — the reason it was needed —
+    "OpenTendril Agent". An instance is not an agent: it has no single body or
+    mind, it *contains* Sprouts and reaches the Mycorrhizal Network.
+*   **Stoma** — the **single controlled aperture** in a **Terrarium** wall. In
+    botany a stoma is the pore through which everything passes between a plant's
+    sealed interior and the outside, opened and closed by guard cells. Here it is
+    the guest-side listener inside an isolated Terrarium: commands enter through
+    it and results leave through it, and **nothing else crosses the wall**. A
+    Terrarium has exactly one Stoma, which is the whole security property stated
+    as anatomy.
 *   **Greenhouse** — the **Command Center UI**. The pane of glass through which the
     Botanist watches the headless organism grow via telemetry (REST/WebSockets).
 

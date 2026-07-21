@@ -28,7 +28,7 @@ type SproutHandler struct {
 	core    core.Core
 	history *historydb.Store
 	bus     *eventbus.Bus
-	// delegation gates *delegated* invocations (DelegationSubjectHeader) of
+	// delegation gates *delegated* invocations (PollenHeader) of
 	// both sprout routes against the active grants. A nil gate denies every
 	// delegated invocation; requests without the header are untouched.
 	delegation *DelegationGate
@@ -54,15 +54,15 @@ func (h *SproutHandler) WithDelegation(gate *DelegationGate) *SproutHandler {
 // authorizeDelegated gates a delegated sprout invocation. It returns true
 // when handling may proceed: either the request is not delegated (no marker
 // header — today's path, untouched) or an active grant covers
-// {subject, operation-class, substrate}. On denial it writes 403 and the gate
+// {pollen, operation-class, substrate}. On denial it writes 403 and the gate
 // records the audit event.
 func (h *SproutHandler) authorizeDelegated(w http.ResponseWriter, r *http.Request, substrate string) bool {
-	subject := DelegatedSubject(r)
-	if subject == "" {
+	pollen := DelegatedPollen(r)
+	if pollen == "" {
 		return true
 	}
 	decision := h.delegation.Authorize(core.DelegationRequest{
-		Subject:        subject,
+		Pollen:         pollen,
 		OperationClass: core.CapSproutGrow,
 		Substrate:      strings.TrimSpace(substrate),
 	})

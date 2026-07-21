@@ -1,7 +1,13 @@
 //go:build linux
 
-// sprout-agent runs inside a Firecracker guest VM, listening on AF_VSOCK port
-// 5000 for JSON-encoded command requests from the host FirecrackerProvider.
+// The Stoma: the single controlled aperture in a Terrarium wall.
+//
+// In botany a stoma is the pore through which everything passes between a
+// plant's sealed interior and the outside world, opened and closed by guard
+// cells. This binary is exactly that for a Firecracker Terrarium — it runs as
+// the guest's init process and listens on AF_VSOCK port 5000 for JSON-encoded
+// command requests from the host FirecrackerProvider. Nothing else crosses the
+// wall, and a Terrarium has exactly one Stoma.
 package main
 
 import (
@@ -94,9 +100,9 @@ func main() {
 		os.Setenv("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
 	}
 
-	fmt.Fprintf(os.Stderr, "sprout-agent: starting vsock listener on port %d\n", vsockPort)
+	fmt.Fprintf(os.Stderr, "stoma: starting vsock listener on port %d\n", vsockPort)
 	if err := listenAndServe(); err != nil {
-		fmt.Fprintf(os.Stderr, "sprout-agent: fatal: %v\n", err)
+		fmt.Fprintf(os.Stderr, "stoma: fatal: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -116,7 +122,7 @@ func listenAndServe() error {
 		return fmt.Errorf("vsock listen: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "sprout-agent: listening on vsock port %d\n", vsockPort)
+	fmt.Fprintf(os.Stderr, "stoma: listening on vsock port %d\n", vsockPort)
 
 	for {
 		nfd, err := vsockAccept(fd)
@@ -124,7 +130,7 @@ func listenAndServe() error {
 			if errors.Is(err, syscall.EINVAL) {
 				return nil // socket closed
 			}
-			fmt.Fprintf(os.Stderr, "sprout-agent: accept error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "stoma: accept error: %v\n", err)
 			continue
 		}
 		go handleConn(nfd)

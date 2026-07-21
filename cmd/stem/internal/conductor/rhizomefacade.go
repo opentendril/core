@@ -17,7 +17,7 @@ import (
 // The names live here, next to the code that creates them, because the commit
 // path has to skip exactly these files and a second copy of the list would
 // drift away from this one. Nothing else under .tendril is covered on purpose:
-// a repository may legitimately track its own .tendril files, and an Sprout
+// a repository may legitimately track its own .tendril files, and a Sprout
 // asked to edit one must still be able to.
 const (
 	tendrilStateDirectory = ".tendril"

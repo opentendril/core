@@ -17,7 +17,7 @@ import (
 // POST /v1/git/commit commits the current state of a substrate's workspace
 // under the substrate's configured commit identity; /v1/git/push publishes the
 // branch; /v1/git/pr opens the pull request. Delegated invocations (marked with
-// DelegationSubjectHeader) are gated per-invocation by the delegation
+// PollenHeader) are gated per-invocation by the delegation
 // authorizer, each against its own operation-class; a request without the
 // marker follows the plain bearer-authenticated path.
 type GitHandler struct {
@@ -96,9 +96,9 @@ func (h *GitHandler) commit(w http.ResponseWriter, r *http.Request) {
 	// A delegated invocation is authorized per-invocation against the active
 	// grants; a non-delegated request follows the plain bearer-authenticated
 	// path untouched.
-	if subject := DelegatedSubject(r); subject != "" {
+	if pollen := DelegatedPollen(r); pollen != "" {
 		decision := h.delegation.Authorize(core.DelegationRequest{
-			Subject:        subject,
+			Pollen:         pollen,
 			OperationClass: core.CapGitCommit,
 			Substrate:      strings.TrimSpace(req.Substrate),
 		})
@@ -106,11 +106,11 @@ func (h *GitHandler) commit(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "delegation denied: "+decision.Reason, http.StatusForbidden)
 			return
 		}
-		// The authorized subject travels onward in the context, never in the
+		// The authorized pollen travels onward in the context, never in the
 		// request body: it selects the isolated workspace this operation runs
-		// in, so a body-supplied subject would let a caller claim another
+		// in, so a body-supplied pollen would let a caller claim another
 		// subject's workspace.
-		r = r.WithContext(core.WithDelegationSubject(r.Context(), subject))
+		r = r.WithContext(core.WithPollen(r.Context(), pollen))
 	}
 	if strings.TrimSpace(req.Origin) == "" {
 		req.Origin = session.OriginREST
@@ -140,9 +140,9 @@ func (h *GitHandler) push(w http.ResponseWriter, r *http.Request) {
 	// A delegated invocation is authorized per-invocation against the active
 	// grants; a non-delegated request follows the plain bearer-authenticated
 	// path untouched.
-	if subject := DelegatedSubject(r); subject != "" {
+	if pollen := DelegatedPollen(r); pollen != "" {
 		decision := h.delegation.Authorize(core.DelegationRequest{
-			Subject:        subject,
+			Pollen:         pollen,
 			OperationClass: core.CapGitPush,
 			Substrate:      strings.TrimSpace(req.Substrate),
 		})
@@ -150,11 +150,11 @@ func (h *GitHandler) push(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "delegation denied: "+decision.Reason, http.StatusForbidden)
 			return
 		}
-		// The authorized subject travels onward in the context, never in the
+		// The authorized pollen travels onward in the context, never in the
 		// request body: it selects the isolated workspace this operation runs
-		// in, so a body-supplied subject would let a caller claim another
+		// in, so a body-supplied pollen would let a caller claim another
 		// subject's workspace.
-		r = r.WithContext(core.WithDelegationSubject(r.Context(), subject))
+		r = r.WithContext(core.WithPollen(r.Context(), pollen))
 	}
 	if strings.TrimSpace(req.Origin) == "" {
 		req.Origin = session.OriginREST
@@ -185,9 +185,9 @@ func (h *GitHandler) pullRequest(w http.ResponseWriter, r *http.Request) {
 	// grants; a non-delegated request follows the plain bearer-authenticated
 	// path untouched. git.pr is its own operation-class, so a grant covering
 	// commit and push does not confer it.
-	if subject := DelegatedSubject(r); subject != "" {
+	if pollen := DelegatedPollen(r); pollen != "" {
 		decision := h.delegation.Authorize(core.DelegationRequest{
-			Subject:        subject,
+			Pollen:         pollen,
 			OperationClass: core.CapGitPR,
 			Substrate:      strings.TrimSpace(req.Substrate),
 		})
@@ -195,11 +195,11 @@ func (h *GitHandler) pullRequest(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "delegation denied: "+decision.Reason, http.StatusForbidden)
 			return
 		}
-		// The authorized subject travels onward in the context, never in the
+		// The authorized pollen travels onward in the context, never in the
 		// request body: it selects the isolated workspace this operation runs
-		// in, so a body-supplied subject would let a caller claim another
+		// in, so a body-supplied pollen would let a caller claim another
 		// subject's workspace.
-		r = r.WithContext(core.WithDelegationSubject(r.Context(), subject))
+		r = r.WithContext(core.WithPollen(r.Context(), pollen))
 	}
 	if strings.TrimSpace(req.Origin) == "" {
 		req.Origin = session.OriginREST
@@ -229,9 +229,9 @@ func (h *GitHandler) branch(w http.ResponseWriter, r *http.Request) {
 	// A delegated invocation is authorized per-invocation against the active
 	// grants; git.branch is its own operation-class, so a grant covering the
 	// commit/push/pull-request loop does not confer it.
-	if subject := DelegatedSubject(r); subject != "" {
+	if pollen := DelegatedPollen(r); pollen != "" {
 		decision := h.delegation.Authorize(core.DelegationRequest{
-			Subject:        subject,
+			Pollen:         pollen,
 			OperationClass: core.CapGitBranch,
 			Substrate:      strings.TrimSpace(req.Substrate),
 		})
@@ -239,11 +239,11 @@ func (h *GitHandler) branch(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "delegation denied: "+decision.Reason, http.StatusForbidden)
 			return
 		}
-		// The authorized subject travels onward in the context, never in the
+		// The authorized pollen travels onward in the context, never in the
 		// request body: it selects the isolated workspace this operation runs
-		// in, so a body-supplied subject would let a caller claim another
+		// in, so a body-supplied pollen would let a caller claim another
 		// subject's workspace.
-		r = r.WithContext(core.WithDelegationSubject(r.Context(), subject))
+		r = r.WithContext(core.WithPollen(r.Context(), pollen))
 	}
 	if strings.TrimSpace(req.Origin) == "" {
 		req.Origin = session.OriginREST
@@ -274,9 +274,9 @@ func (h *GitHandler) status(w http.ResponseWriter, r *http.Request) {
 	// changed file paths, which is repository content. The deny-closed default
 	// applies to disclosure as much as to mutation, so git.status is its own
 	// operation-class and is conferred by nothing else.
-	if subject := DelegatedSubject(r); subject != "" {
+	if pollen := DelegatedPollen(r); pollen != "" {
 		decision := h.delegation.Authorize(core.DelegationRequest{
-			Subject:        subject,
+			Pollen:         pollen,
 			OperationClass: core.CapGitStatus,
 			Substrate:      strings.TrimSpace(req.Substrate),
 		})
@@ -284,11 +284,11 @@ func (h *GitHandler) status(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "delegation denied: "+decision.Reason, http.StatusForbidden)
 			return
 		}
-		// The authorized subject travels onward in the context, never in the
+		// The authorized pollen travels onward in the context, never in the
 		// request body: it selects the isolated workspace this operation runs
-		// in, so a body-supplied subject would let a caller claim another
+		// in, so a body-supplied pollen would let a caller claim another
 		// subject's workspace.
-		r = r.WithContext(core.WithDelegationSubject(r.Context(), subject))
+		r = r.WithContext(core.WithPollen(r.Context(), pollen))
 	}
 	if strings.TrimSpace(req.Origin) == "" {
 		req.Origin = session.OriginREST
@@ -315,9 +315,9 @@ func (h *GitHandler) branchList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if subject := DelegatedSubject(r); subject != "" {
+	if pollen := DelegatedPollen(r); pollen != "" {
 		decision := h.delegation.Authorize(core.DelegationRequest{
-			Subject:        subject,
+			Pollen:         pollen,
 			OperationClass: core.CapGitBranchList,
 			Substrate:      strings.TrimSpace(req.Substrate),
 		})
@@ -325,7 +325,7 @@ func (h *GitHandler) branchList(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "delegation denied: "+decision.Reason, http.StatusForbidden)
 			return
 		}
-		r = r.WithContext(core.WithDelegationSubject(r.Context(), subject))
+		r = r.WithContext(core.WithPollen(r.Context(), pollen))
 	}
 	if strings.TrimSpace(req.Origin) == "" {
 		req.Origin = session.OriginREST
@@ -355,9 +355,9 @@ func (h *GitHandler) prune(w http.ResponseWriter, r *http.Request) {
 	// git.prune is the ladder's only destructive operation and is its own
 	// operation-class: no other grant confers it, notably not git.branch,
 	// whose name would otherwise imply it.
-	if subject := DelegatedSubject(r); subject != "" {
+	if pollen := DelegatedPollen(r); pollen != "" {
 		decision := h.delegation.Authorize(core.DelegationRequest{
-			Subject:        subject,
+			Pollen:         pollen,
 			OperationClass: core.CapGitPrune,
 			Substrate:      strings.TrimSpace(req.Substrate),
 		})
@@ -365,7 +365,7 @@ func (h *GitHandler) prune(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "delegation denied: "+decision.Reason, http.StatusForbidden)
 			return
 		}
-		r = r.WithContext(core.WithDelegationSubject(r.Context(), subject))
+		r = r.WithContext(core.WithPollen(r.Context(), pollen))
 	}
 	if strings.TrimSpace(req.Origin) == "" {
 		req.Origin = session.OriginREST

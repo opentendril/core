@@ -21,7 +21,7 @@ import (
 // pull request — the full delegated ladder, deliberately narrow beyond it (no
 // delete, no rename, no merge, no arbitrary checkout).
 //
-// A CLI invocation is never delegated (there is no delegation subject); the
+// A CLI invocation is never delegated (there is no Pollen); the
 // deny-closed attribution rule applies either way — a substrate without a
 // configured commit identity is refused before any git command runs.
 func runGitCmd(ctx context.Context, args []string) {
@@ -259,7 +259,7 @@ func gitOperations() core.GitOperations {
 				BlockedReason:       result.BlockedReason,
 				Workspace:           workspace.Path,
 				Isolated:            workspace.Isolated,
-				Subject:             workspace.Subject,
+				Pollen:              workspace.Pollen,
 			}, nil
 		},
 		BranchList: func(ctx context.Context, spec core.GitBranchListSpec) (core.GitBranchListResult, error) {
@@ -353,13 +353,13 @@ func gitOperations() core.GitOperations {
 
 // resolveGitWorkspace turns a substrate reference into the directory an
 // operation actually runs in, and is the single place the delegated ladder
-// decides that. A delegated invocation (one carrying an authorized subject in
+// decides that. A delegated invocation (one carrying an authorized Pollen in
 // its context) runs in that subject's own worktree; a direct command line run
-// carries no subject and uses the substrate's own checkout, so an operator at a
+// carries no Pollen and uses the substrate's own checkout, so an operator at a
 // terminal still sees their working copy.
 //
 // Every git operation goes through here. Resolving a substrate's raw path for a
-// delegated call is exactly the bug this exists to prevent — two agents sharing
+// delegated call is exactly the bug this exists to prevent — two Pollinators sharing
 // one tree, staging each other's files — so the isolation cannot be bypassed by
 // one operation quietly doing its own resolution. TestDelegatedOperationsAreIsolated
 // pins that.
@@ -376,7 +376,17 @@ func resolveGitWorkspace(ctx context.Context, substrate string, substratesConfig
 		return conductor.DelegatedWorkspace{}, nil, fmt.Errorf("substrate %q does not resolve to a local workspace directory (the delegated git ladder runs against a local checkout)", substrate)
 	}
 
-	resolved, err := conductor.ResolveDelegatedWorkspace(ctx, substrate, workspace, core.DelegationSubjectFromContext(ctx))
+	// The credential is resolved before the workspace because workspace
+	// resolution may need it: a Pollinator returning to a workspace whose work has
+	// merged gets a fresh branch, and "has it merged" is forge evidence.
+	credential := conductor.ResolvedCredential{}
+	if substrateSpec != nil {
+		if resolvedCredential, credentialErr := conductor.ResolveSubstrateCredential(*substrateSpec, substratesConfig); credentialErr == nil {
+			credential = resolvedCredential
+		}
+	}
+
+	resolved, err := conductor.ResolveDelegatedWorkspace(ctx, substrate, workspace, core.PollenFromContext(ctx), credential)
 	if err != nil {
 		return conductor.DelegatedWorkspace{}, nil, err
 	}
@@ -544,7 +554,7 @@ func printGitUsage() {
 	fmt.Println()
 	fmt.Println("setup --substrate <name> --repo <owner/repo> [--posture app|pat] ...")
 	fmt.Println("  Writes a git connection (substrates.yaml) + optional grant and prints the")
-	fmt.Println("  agent MCP config. Run `tendril git setup --help` for the full flag list.")
+	fmt.Println("  Model Context Protocol block for the Pollinator. Run `tendril git setup --help` for the full flag list.")
 	fmt.Println()
 	fmt.Println("status --substrate <path|name>")
 	fmt.Println("  Reports the workspace's branch, the resolved default branch, uncommitted")
@@ -553,7 +563,7 @@ func printGitUsage() {
 	fmt.Println()
 	fmt.Println("branches --substrate <path|name>")
 	fmt.Println("  Classifies local branches against GitHub: merged, pull request open or")
-	fmt.Println("  closed-without-merging, never pushed, or held by another agent. Read-only.")
+	fmt.Println("  closed-without-merging, never pushed, or held by another Pollinator. Read-only.")
 	fmt.Println()
 	fmt.Println("prune --substrate <path|name> [--confirm]")
 	fmt.Println("  Deletes local branches whose pull request MERGED, and nothing else. Without")
@@ -613,7 +623,7 @@ func printGitStatus(status core.GitStatusResult) {
 	}
 	fmt.Fprintf(os.Stderr, " · default: %s (%s)\n", defaultBranch, status.DefaultBranchSource)
 	if status.Isolated {
-		fmt.Fprintf(os.Stderr, "   workspace: isolated for subject %q at %s\n", status.Subject, status.Workspace)
+		fmt.Fprintf(os.Stderr, "   workspace: isolated for pollen %q at %s\n", status.Pollen, status.Workspace)
 	}
 
 	if status.Upstream == "" {

@@ -18,7 +18,7 @@ import (
 // the REST and MCP surfaces use. `tendril passthrough run` executes one
 // bounded command inside a network-sealed terrarium and prints its output.
 //
-// A CLI invocation is never delegated (there is no delegation subject), so
+// A CLI invocation is never delegated (there is no Pollen), so
 // its egress allow-list is always empty: deny-all, the secure default. The
 // container is network-sealed either way; only a delegated invocation under a
 // grant with egress hosts gains Stem-mediated fetches.
