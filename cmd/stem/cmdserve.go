@@ -169,9 +169,27 @@ func runServeCmd(ctx context.Context, args []string) {
 		log.Printf("⚠️ Failed to load delegation grants: %v (delegation disabled — every delegated invocation is denied)", grantsErr)
 		delegationGrants = nil
 	}
+	// Issued credentials are what let a caller PROVE a Pollen rather than
+	// declare one. A malformed store is fatal rather than empty: degrading to
+	// "no credentials" would silently return every caller to the declared-Pollen
+	// path, which is the weaker tier.
+	pollinatorCredentials, credentialsErr := core.LoadPollinatorCredentials(tendrilDir)
+	if credentialsErr != nil {
+		log.Fatalf("❌ Pollinator credentials could not be read: %v", credentialsErr)
+	}
 	delegationGate := &receptors.DelegationGate{
-		Authorizer: core.NewDelegationAuthorizer(delegationGrants),
-		Bus:        bus,
+		Pollinators: pollinatorCredentials,
+		Authorizer:  core.NewDelegationAuthorizer(delegationGrants),
+		Bus:         bus,
+	}
+	if len(pollinatorCredentials) > 0 {
+		active := 0
+		for _, credential := range pollinatorCredentials {
+			if credential.Active() {
+				active++
+			}
+		}
+		fmt.Fprintf(os.Stderr, "🔏 %d Pollinator credential(s) loaded (%d active): a presented credential DERIVES its Pollen; the header claim is ignored for those callers\n", len(pollinatorCredentials), active)
 	}
 	if len(delegationGrants) > 0 {
 		log.Printf("Delegation enabled: %d grant(s) loaded from %s", len(delegationGrants), filepath.Join(tendrilDir, core.DelegationGrantsFilename))
