@@ -298,7 +298,7 @@ that identity may do*.
 ## Is the boundary actually real here?
 
 ```bash
-tendril doctor
+tendril hardiness
 ```
 
 It reports what is true on *this* machine: whether the Stem has its own
@@ -307,7 +307,7 @@ serves, whether credentials have been issued, and whether any grants exist.
 
 This matters because the strongest credential model is still walkable if the Stem
 and its callers are the same user — that user can read the private key, rewrite
-`grants.yaml`, or ignore `tendril` entirely. On such a Terroir `doctor` says so,
+`grants.yaml`, or ignore `tendril` entirely. On such a Terroir `hardiness` says so,
 in those words. Run the Stem as its own user to make the boundary enforced rather
 than advisory.
 
