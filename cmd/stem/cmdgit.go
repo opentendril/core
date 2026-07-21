@@ -33,6 +33,9 @@ func runGitCmd(ctx context.Context, args []string) {
 	case "-h", "--help", "help":
 		printGitUsage()
 		return
+	case "setup":
+		runGitSetup(ctx, args[1:])
+		return
 	}
 
 	sub := strings.ToLower(strings.TrimSpace(args[0]))
@@ -289,7 +292,11 @@ func gitUsageSuffix(capName string) string {
 }
 
 func printGitUsage() {
-	fmt.Println("Usage: tendril git <commit|push> --substrate <path|name> [flags]")
+	fmt.Println("Usage: tendril git <setup|commit|push> --substrate <path|name> [flags]")
+	fmt.Println()
+	fmt.Println("setup --substrate <name> --repo <owner/repo> [--posture app|pat] ...")
+	fmt.Println("  Writes a git connection (substrates.yaml) + optional grant and prints the")
+	fmt.Println("  agent MCP config. Run `tendril git setup --help` for the full flag list.")
 	fmt.Println()
 	fmt.Println("commit --substrate <path|name> --message <message> [--path P ...]")
 	fmt.Println("  Commits the current state of a substrate's workspace under the substrate's")
