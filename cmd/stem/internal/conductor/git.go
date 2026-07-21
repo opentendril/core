@@ -140,8 +140,8 @@ func RunGitCommit(ctx context.Context, execution GitCommitExecution) (GitCommitR
 	return GitCommitResult{Status: "committed", CommitHash: commitHash}, nil
 }
 
-// API-mode delegated commit (commit: api) — the recommended default per the
-// Design RFC (#266): a GitHub App connection creates the commit server-side
+// API-mode delegated commit (commit: api) — the recommended default git
+// connection posture: a GitHub App connection creates the commit server-side
 // via the GraphQL createCommitOnBranch mutation, so GitHub itself signs it
 // (a verified commit with no local key material) rather than the Stem
 // running local git and an optional GPG/SSH signature.
