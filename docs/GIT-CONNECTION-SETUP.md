@@ -262,6 +262,41 @@ grants:
 
 ---
 
+## Working from a terminal as a Pollinator
+
+A Pollinator that drives a terminal — rather than connecting over the Model
+Context Protocol — declares its Pollen in the environment:
+
+```bash
+export OPENTENDRIL_POLLEN=claude
+tendril git status --substrate myrepo      # authorised, audited, isolated workspace
+```
+
+With `OPENTENDRIL_POLLEN` set, every delegated operation is checked against the
+grants, the decision is written to `history.db`, and the work runs in that
+Pollinator's own workspace. A refused operation exits non-zero and does nothing.
+
+Without it, `tendril git ...` behaves exactly as it always has: you are the
+**Botanist**, working in your own checkout, ungated.
+
+> **This is an audit control, not a security boundary.** The Pollen is *declared
+> by the caller*, so at a terminal a Pollinator can claim any Pollen it likes —
+> including one with wider grants. And a caller running as the same operating
+> system user as the Stem can read its credentials, rewrite `grants.yaml`, or
+> ignore `tendril` altogether.
+>
+> What this **does** stop: the wrong substrate, an operation nobody meant to
+> grant, and the quiet drift into working outside the governed path — the
+> failures that actually happen. What it **does not** stop: a Pollinator that
+> decides to lie.
+>
+> The boundary becomes real when the Stem runs as its **own** operating-system
+> user, owning credentials no Pollinator can read. Until then, treat a declared
+> Pollen as a statement of intent that is recorded, not a permission that is
+> enforced.
+
+---
+
 ## Several Pollinators at once
 
 Tendril is built for simultaneous work, so **each authorised pollen gets its own
