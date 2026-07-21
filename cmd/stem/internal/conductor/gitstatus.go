@@ -10,11 +10,11 @@ import (
 
 // The read-side of the delegated git ladder.
 //
-// Four write operations carry guardrails that exist because a delegation subject guessed
+// Four write operations carry guardrails that exist because a Pollen guessed
 // something it could not see — which branch was the default, whether the
 // workspace was already on a feature branch, whether a pull request existed.
 // Every one of those guardrails catches a guess; none of them removed the
-// reason for guessing. RunGitStatus does: it lets a subject look before it
+// reason for guessing. RunGitStatus does: it lets a Pollinator look before it
 // acts, so a refusal becomes a prediction instead of a surprise.
 //
 // Two properties make it trustworthy, and both are deliberate:
@@ -23,7 +23,7 @@ import (
 //     from AssessDefaultBranchCommit — the same predicate the commit guard
 //     acts on — not from a reimplementation. A status that disagreed with the
 //     write path would be worse than no status, because it would teach an
-//     subject to distrust the read-side.
+//     Pollinator to distrust the read-side.
 //  2. It makes no network calls, for the same reason: the commit guard is
 //     offline, so status must be offline or the two would diverge whenever
 //     the interface and the local record differ. It is also strictly
@@ -128,8 +128,8 @@ func RunGitStatus(ctx context.Context, execution GitStatusExecution) (GitStatusR
 
 	result := GitStatusResult{Clean: true, CommitAllowed: true}
 
-	// A repository with no commits yet is a real state a subject needs
-	// described, not an error: refusing it would send the subject back to
+	// A repository with no commits yet is a real state a Pollinator needs
+	// described, not an error: refusing it would send the Pollinator back to
 	// guessing at the moment it is most confused.
 	if head, err := runGitCommitCommandFn(ctx, execution.Workspace, "rev-parse", "HEAD"); err == nil {
 		result.Head = strings.TrimSpace(head)
@@ -161,7 +161,7 @@ func RunGitStatus(ctx context.Context, execution GitStatusExecution) (GitStatusR
 
 	// Upstream, and the ahead/behind counts against it. A branch that has
 	// never been pushed simply has none — reported as such rather than as an
-	// error, since "not pushed yet" is exactly what the subject needs to know.
+	// error, since "not pushed yet" is exactly what the Pollinator needs to know.
 	if upstream, err := runGitCommitCommandFn(ctx, execution.Workspace, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"); err == nil {
 		result.Upstream = strings.TrimSpace(upstream)
 		if counts, countErr := runGitCommitCommandFn(ctx, execution.Workspace, "rev-list", "--left-right", "--count", result.Upstream+"...HEAD"); countErr == nil {

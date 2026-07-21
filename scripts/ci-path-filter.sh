@@ -43,7 +43,7 @@ while IFS= read -r path; do
             sprout_python=true
             ;;
 
-        # The Go kernel. `cmd/*` (not `cmd/stem/*`) so cmd/sprout-agent — the
+        # The Go kernel. `cmd/*` (not `cmd/stem/*`) so cmd/stoma — the
         # microVM guest agent — is covered rather than silently unbuilt.
         cmd/*|roots/*|go.mod|go.sum)
             stem_go=true

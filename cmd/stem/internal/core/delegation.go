@@ -48,14 +48,14 @@ func delegationImpactRank(impact string) int {
 	}
 }
 
-// DelegationGrant authorizes one subject (a delegation-subject / Phytomer /
-// mesh trust-root
+// DelegationGrant authorizes one Pollen (a Pollinator's, a Phytomer's, or a
+// mesh peer's trust-root
 // identity) to invoke a bounded set of operation-classes on a bounded set of
 // Substrates. It is control-plane policy — distinct from substrates.yaml,
 // which stays about connections and credentials.
 type DelegationGrant struct {
-	// Subject is the trust-root identity exercising the grant.
-	Subject string
+	// Pollen is the trust-root identity exercising the grant.
+	Pollen string
 	// OperationClasses allow-lists the delegable operation-classes (for this
 	// slice the governed capability names, e.g. "sprout.grow"). Exact match;
 	// no wildcards — a grant names precisely what it opens.
@@ -93,8 +93,8 @@ func (g DelegationGrant) clone() DelegationGrant {
 // grants the authorizer consults are the ones it was constructed with, so a
 // request (or the Substrate content behind it) can never self-escalate.
 type DelegationRequest struct {
-	// Subject is the trust-root identity claiming the delegation.
-	Subject string
+	// Pollen is the trust-root identity claiming the delegation.
+	Pollen string
 	// OperationClass names the operation-class being invoked.
 	OperationClass string
 	// Substrate names the substrate the invocation targets.
@@ -140,15 +140,15 @@ func NewDelegationAuthorizer(grants []DelegationGrant) *DelegationAuthorizer {
 // grant set, or an incomplete request all deny — with no configuration,
 // delegation is impossible.
 func (a *DelegationAuthorizer) Authorize(request DelegationRequest) DelegationDecision {
-	subject := strings.TrimSpace(request.Subject)
+	pollen := strings.TrimSpace(request.Pollen)
 	operationClass := strings.TrimSpace(request.OperationClass)
 	substrate := strings.TrimSpace(request.Substrate)
 
 	if a == nil || len(a.grants) == 0 {
 		return delegationDenied("no delegation grants are configured")
 	}
-	if subject == "" {
-		return delegationDenied("delegated invocation names no subject")
+	if pollen == "" {
+		return delegationDenied("delegated invocation names no pollen")
 	}
 	if operationClass == "" {
 		return delegationDenied("delegated invocation names no operation-class")
@@ -160,7 +160,7 @@ func (a *DelegationAuthorizer) Authorize(request DelegationRequest) DelegationDe
 	now := a.now()
 	for i := range a.grants {
 		grant := &a.grants[i]
-		if grant.Subject != subject {
+		if grant.Pollen != pollen {
 			continue
 		}
 		if !grant.Expires.IsZero() && !now.Before(grant.Expires) {
@@ -175,16 +175,16 @@ func (a *DelegationAuthorizer) Authorize(request DelegationRequest) DelegationDe
 		if threshold := strings.TrimSpace(grant.ConfirmAboveImpact); threshold != "" &&
 			delegationImpactRank(request.Impact) >= delegationImpactRank(threshold) {
 			return delegationDenied(fmt.Sprintf(
-				"grant for subject %q requires human confirmation at or above impact %q; no confirmation surface is available yet",
-				subject, threshold))
+				"grant for pollen %q requires human confirmation at or above impact %q; no confirmation surface is available yet",
+				pollen, threshold))
 		}
 		matched := grant.clone()
 		return DelegationDecision{Authorized: true, Grant: &matched}
 	}
 
 	return delegationDenied(fmt.Sprintf(
-		"no active grant covers subject %q, operation-class %q, substrate %q",
-		subject, operationClass, substrate))
+		"no active grant covers pollen %q, operation-class %q, substrate %q",
+		pollen, operationClass, substrate))
 }
 
 func delegationDenied(reason string) DelegationDecision {

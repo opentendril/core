@@ -55,8 +55,8 @@ tendril terrarium init-firecracker
 
 This command automatically:
 1. Downloads a compatible, uncompressed Linux kernel from the official Firecracker AWS CI bucket.
-2. Compiles the `sprout-agent` binary for `linux/amd64`.
-3. Provisions a minimal Alpine Linux `ext4` rootfs and injects the `sprout-agent` as the `init` process using a privileged Docker helper.
+2. Compiles the `stoma` binary for `linux/amd64`.
+3. Provisions a minimal Alpine Linux `ext4` rootfs and injects the `stoma` as the `init` process using a privileged Docker helper.
 
 ### Configuration
 

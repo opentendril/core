@@ -72,7 +72,7 @@ func TestDelegatedGitCommitDeniedAndAuditedWithoutGrant(t *testing.T) {
 	mux, bus, executed, _ := newGitTestHandler(t, nil)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/commit", strings.NewReader(gitCommitBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -90,24 +90,24 @@ func TestDelegatedGitCommitDeniedAndAuditedWithoutGrant(t *testing.T) {
 	if event.Type != eventbus.EventDelegationDenied {
 		t.Fatalf("audit event type = %s, want %s", event.Type, eventbus.EventDelegationDenied)
 	}
-	if event.Data["subject"] != "local-agent" || event.Data["operationClass"] != core.CapGitCommit {
-		t.Fatalf("audit event data = %v, want the denied request's subject and operation-class", event.Data)
+	if event.Data["pollen"] != "local-agent" || event.Data["operationClass"] != core.CapGitCommit {
+		t.Fatalf("audit event data = %v, want the denied request's pollen and operation-class", event.Data)
 	}
 }
 
 // TestDelegatedGitCommitPermittedByMatchingGrant: an active grant covering
-// {subject, git.commit, substrate} lets the invocation run, and the exercise
+// {pollen, git.commit, substrate} lets the invocation run, and the exercise
 // is audited.
 func TestDelegatedGitCommitPermittedByMatchingGrant(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitCommit},
 		Substrates:       []string{"core"},
 	}}
 	mux, bus, executed, lastSpec := newGitTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/commit", strings.NewReader(gitCommitBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -134,14 +134,14 @@ func TestDelegatedGitCommitPermittedByMatchingGrant(t *testing.T) {
 // substrate scope is enforced on the git commit route.
 func TestDelegatedGitCommitDeniedOnSubstrateMismatch(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitCommit},
 		Substrates:       []string{"another-substrate"},
 	}}
 	mux, _, executed, _ := newGitTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/commit", strings.NewReader(gitCommitBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -174,7 +174,7 @@ func TestGitCommitDelegatedDeniedWithNilGate(t *testing.T) {
 	}
 
 	delegated := httptest.NewRequest(http.MethodPost, "/v1/git/commit", strings.NewReader(gitCommitBody))
-	delegated.Header.Set(DelegationSubjectHeader, "local-agent")
+	delegated.Header.Set(PollenHeader, "local-agent")
 	delegatedRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(delegatedRecorder, delegated)
 	if delegatedRecorder.Code != http.StatusForbidden {
@@ -213,7 +213,7 @@ func TestDelegatedGitPushDeniedAndAuditedWithoutGrant(t *testing.T) {
 	mux, bus, executed := newGitPushTestHandler(t, nil)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/push", strings.NewReader(gitPushBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -231,8 +231,8 @@ func TestDelegatedGitPushDeniedAndAuditedWithoutGrant(t *testing.T) {
 	if event.Type != eventbus.EventDelegationDenied {
 		t.Fatalf("audit event type = %s, want %s", event.Type, eventbus.EventDelegationDenied)
 	}
-	if event.Data["subject"] != "local-agent" || event.Data["operationClass"] != core.CapGitPush {
-		t.Fatalf("audit event data = %v, want the denied push's subject and operation-class", event.Data)
+	if event.Data["pollen"] != "local-agent" || event.Data["operationClass"] != core.CapGitPush {
+		t.Fatalf("audit event data = %v, want the denied push's pollen and operation-class", event.Data)
 	}
 }
 
@@ -241,14 +241,14 @@ func TestDelegatedGitPushDeniedAndAuditedWithoutGrant(t *testing.T) {
 // covers git.commit must NOT authorize a push.
 func TestDelegatedGitPushPermittedByMatchingGrant(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitPush},
 		Substrates:       []string{"core"},
 	}}
 	mux, bus, executed := newGitPushTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/push", strings.NewReader(gitPushBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -269,17 +269,17 @@ func TestDelegatedGitPushPermittedByMatchingGrant(t *testing.T) {
 }
 
 // TestDelegatedGitPushDeniedByCommitOnlyGrant proves the operation-classes are
-// distinct: a subject granted git.commit cannot push.
+// distinct: a Pollinator granted git.commit cannot push.
 func TestDelegatedGitPushDeniedByCommitOnlyGrant(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitCommit},
 		Substrates:       []string{"core"},
 	}}
 	mux, _, executed := newGitPushTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/push", strings.NewReader(gitPushBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -346,7 +346,7 @@ func TestDelegatedGitPRDeniedAndAuditedWithoutGrant(t *testing.T) {
 	mux, bus, executed, _ := newGitPRTestHandler(t, nil)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/pr", strings.NewReader(gitPRBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -364,8 +364,8 @@ func TestDelegatedGitPRDeniedAndAuditedWithoutGrant(t *testing.T) {
 	if event.Type != eventbus.EventDelegationDenied {
 		t.Fatalf("audit event type = %s, want %s", event.Type, eventbus.EventDelegationDenied)
 	}
-	if event.Data["subject"] != "local-agent" || event.Data["operationClass"] != core.CapGitPR {
-		t.Fatalf("audit event data = %v, want the denied pull request's subject and operation-class", event.Data)
+	if event.Data["pollen"] != "local-agent" || event.Data["operationClass"] != core.CapGitPR {
+		t.Fatalf("audit event data = %v, want the denied pull request's pollen and operation-class", event.Data)
 	}
 }
 
@@ -373,14 +373,14 @@ func TestDelegatedGitPRDeniedAndAuditedWithoutGrant(t *testing.T) {
 // substrate lets the pull request run, and the exercise is audited.
 func TestDelegatedGitPRPermittedByMatchingGrant(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitPR},
 		Substrates:       []string{"core"},
 	}}
 	mux, bus, executed, lastSpec := newGitPRTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/pr", strings.NewReader(gitPRBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -404,18 +404,18 @@ func TestDelegatedGitPRPermittedByMatchingGrant(t *testing.T) {
 }
 
 // TestDelegatedGitPRDeniedByCommitAndPushGrant proves git.pr is its own
-// operation-class: a subject granted the whole commit-and-push loop still
+// operation-class: a Pollinator granted the whole commit-and-push loop still
 // cannot open a pull request without git.pr.
 func TestDelegatedGitPRDeniedByCommitAndPushGrant(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitCommit, core.CapGitPush},
 		Substrates:       []string{"core"},
 	}}
 	mux, _, executed, _ := newGitPRTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/pr", strings.NewReader(gitPRBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -431,14 +431,14 @@ func TestDelegatedGitPRDeniedByCommitAndPushGrant(t *testing.T) {
 // a different substrate, so the invocation is refused.
 func TestDelegatedGitPRDeniedOnSubstrateMismatch(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitPR},
 		Substrates:       []string{"some-other-substrate"},
 	}}
 	mux, _, executed, _ := newGitPRTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/pr", strings.NewReader(gitPRBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -464,7 +464,7 @@ func TestGitPRDelegatedDeniedWithNilGate(t *testing.T) {
 	NewGitHandler(coreSvc).Register(mux, nil)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/pr", strings.NewReader(gitPRBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -547,7 +547,7 @@ func TestDelegatedGitBranchDeniedAndAuditedWithoutGrant(t *testing.T) {
 	mux, bus, executed := newGitBranchTestHandler(t, nil)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/branch", strings.NewReader(gitBranchBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -567,18 +567,18 @@ func TestDelegatedGitBranchDeniedAndAuditedWithoutGrant(t *testing.T) {
 }
 
 // TestDelegatedGitBranchNotConferredByOtherGitGrants proves git.branch is its
-// own class: a subject granted the entire commit → push → pull request loop
+// own class: a Pollinator granted the entire commit → push → pull request loop
 // still cannot create a branch.
 func TestDelegatedGitBranchNotConferredByOtherGitGrants(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitCommit, core.CapGitPush, core.CapGitPR},
 		Substrates:       []string{"core"},
 	}}
 	mux, _, executed := newGitBranchTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/branch", strings.NewReader(gitBranchBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -594,14 +594,14 @@ func TestDelegatedGitBranchNotConferredByOtherGitGrants(t *testing.T) {
 // through and audits the exercise.
 func TestDelegatedGitBranchPermittedByMatchingGrant(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitBranch},
 		Substrates:       []string{"core"},
 	}}
 	mux, bus, executed := newGitBranchTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/branch", strings.NewReader(gitBranchBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -664,7 +664,7 @@ func TestDelegatedGitStatusDeniedWithoutGrant(t *testing.T) {
 	mux, executed := newGitStatusTestHandler(t, nil)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/status", strings.NewReader(gitStatusBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -676,18 +676,18 @@ func TestDelegatedGitStatusDeniedWithoutGrant(t *testing.T) {
 	}
 }
 
-// TestDelegatedGitStatusNotConferredByWriteGrants: a subject granted every
+// TestDelegatedGitStatusNotConferredByWriteGrants: a Pollinator granted every
 // write operation still cannot read state without git.status.
 func TestDelegatedGitStatusNotConferredByWriteGrants(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitBranch, core.CapGitCommit, core.CapGitPush, core.CapGitPR},
 		Substrates:       []string{"core"},
 	}}
 	mux, executed := newGitStatusTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/status", strings.NewReader(gitStatusBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -702,14 +702,14 @@ func TestDelegatedGitStatusNotConferredByWriteGrants(t *testing.T) {
 // TestDelegatedGitStatusPermittedByMatchingGrant closes the loop.
 func TestDelegatedGitStatusPermittedByMatchingGrant(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapGitStatus},
 		Substrates:       []string{"core"},
 	}}
 	mux, executed := newGitStatusTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/git/status", strings.NewReader(gitStatusBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 

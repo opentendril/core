@@ -132,7 +132,7 @@ func ownedRefIsMerged(ctx context.Context, repository string, ref OwnedRef, cred
 
 // ReclaimOwnedRefs walks every reference Tendril owns in a repository and
 // reclaims the ones that are finished. It is called at the points where a
-// reference's purpose naturally ends — a run completing, a subject returning
+// reference's purpose naturally ends — a run completing, a Pollinator returning
 // for its workspace — so that litter is removed by the same act that created
 // it, rather than by a cleanup chore later.
 func ReclaimOwnedRefs(ctx context.Context, repository string, credential ResolvedCredential) []ReclaimOutcome {

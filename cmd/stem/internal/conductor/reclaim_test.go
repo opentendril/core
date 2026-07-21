@@ -188,10 +188,10 @@ func TestReclaimUnusedIsolationBranchKeepsProducedWork(t *testing.T) {
 // re-registering the same reference updates rather than duplicating it.
 func TestOwnedRefRegistryRoundTrip(t *testing.T) {
 	repo := t.TempDir()
-	if err := RegisterOwnedRef(OwnedRef{Repository: repo, Branch: "a", Purpose: PurposeDelegatedWorkspace, Subject: "agent-a"}); err != nil {
+	if err := RegisterOwnedRef(OwnedRef{Repository: repo, Branch: "a", Purpose: PurposeDelegatedWorkspace, Pollen: "agent-a"}); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	if err := RegisterOwnedRef(OwnedRef{Repository: repo, Branch: "a", Purpose: PurposeDelegatedWorkspace, Subject: "agent-a", Base: "abc"}); err != nil {
+	if err := RegisterOwnedRef(OwnedRef{Repository: repo, Branch: "a", Purpose: PurposeDelegatedWorkspace, Pollen: "agent-a", Base: "abc"}); err != nil {
 		t.Fatalf("re-register: %v", err)
 	}
 	refs := OwnedRefsFor(repo)

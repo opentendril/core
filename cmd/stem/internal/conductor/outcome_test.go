@@ -43,7 +43,7 @@ func TestClassifySproutOutcome(t *testing.T) {
 	}
 }
 
-// failingSproutRunner is an Sprout whose loop errors, standing in for both a
+// failingSproutRunner is a Sprout whose loop errors, standing in for both a
 // broken run and a watchdog-killed run (via an error wrapping
 // ErrSproutTimedOut, exactly what terrariumToolSession.Call produces).
 type failingSproutRunner struct {

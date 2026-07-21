@@ -36,7 +36,8 @@ lifespan. (This table is the basis for the Stem-injectable canonical block.)
 | **Phloem** | Vascular channel carrying diffs (outputs) down to the Substrate. | Output pipe | per-run |
 | **Phytomer** | A session — one persistent interaction thread; the repeating module the Meristem initiates and Sprouts emerge from. | Session / interaction thread | persistent |
 | **Plasmid** | A modular, injectable block of context or tools (*a skill*). | RAG context / tool definition | definition |
-| **Pollinator** | An **external** requester that reaches *in* and asks the organism for governed work — a Botanist at a terminal, or an external Mycorrhizal mind connected over a governed interface. Carries a **delegation subject** (its bound identity) and is granted operation-classes; no grant, no access. | External API caller / client (*not* "agent") | external |
+| **Pollen** | The identity a **Pollinator** presents and a grant names — the trust-root a delegated invocation is authorised as. Plants accept or reject pollen by identity (self-incompatibility); the grant is that recognition. | Subject / principal (access control) | per-connection |
+| **Pollinator** | An **external** requester that reaches *in* and asks the organism for governed work — a Botanist at a terminal, or an external Mycorrhizal mind connected over a governed interface. Carries a **Pollen** (its bound identity) and is granted operation-classes; no grant, no access. | External API caller / client (*not* "agent") | external |
 | **Resin** | Live internal logging trace. | Debug log / trace | transient |
 | **Rhizome** | The background code/AST index of the Substrate. | Vector DB / code index | persistent |
 | **Rhizosphere** | The **external** ecosystem the Roots tap — the LLM providers, Docker, git, MCP themselves. *(The outside world; contrast **Roots**, which is OpenTendril's own code that reaches into it.)* | Underlying tech stack / dependencies | environment |
@@ -45,6 +46,7 @@ lifespan. (This table is the basis for the Stem-injectable canonical block.)
 | **Sequence** | An ordered YAML workflow of steps. | Agentic pipeline / workflow | definition |
 | **Sprout** | An ephemeral, strictly isolated worker that does one unit of work. | Worker container (*not* "agent") | ephemeral |
 | **Stem** | The lean, deterministic Go orchestrator and vascular router. | Core orchestrator / backend | persistent |
+| **Stoma** | The single controlled aperture in a **Terrarium** wall — the guest-side listener through which commands enter and results leave. A Terrarium has exactly one. | Guest agent / init process in a micro-VM | ephemeral |
 | **Substrate** | The repository being cultivated (the soil). | Target repo / codebase | persistent |
 | **Symbiotic Nodule** (Nodule) | An external *service* capability the plant partners with (GCP, GitHub API). | Microservice plugin / MCP gateway | persistent |
 | **Taproot** | The deep, persistent store of deliberation: conversations, RFCs, decisions + rationale, reviews. | Decision record / institutional memory | persistent |
@@ -82,7 +84,8 @@ lifespan. (This table is the basis for the Stem-injectable canonical block.)
 | Standard IT / AI | OpenTendril | Note |
 |---|---|---|
 | Agent / autonomous worker | **Sprout** (body) + **Mycorrhizae** (mind) | Tendril deliberately *decomposes* "agent"; it is not one thing. |
-| External caller / client asking Tendril for work | **Pollinator** | The mirror of a **Symbiotic Nodule**: a Nodule is reached *out* to, a Pollinator reaches *in*. |
+| External caller / client asking Tendril for work | **Pollen** | The identity a **Pollinator** presents and a grant names — the trust-root a delegated invocation is authorised as. Plants accept or reject pollen by identity (self-incompatibility); the grant is that recognition. | Subject / principal (access control) | per-connection |
+| **Pollinator** | The mirror of a **Symbiotic Nodule**: a Nodule is reached *out* to, a Pollinator reaches *in*. |
 | Session / interaction thread | **Phytomer** | The Meristem initiates it; Sprouts emerge from it. |
 | Task / user prompt | **Transcript** (single) / **Seed** (product-level intent) | |
 | Run / execute | **grow** (verb) | A Sprout *grows* its Transcript. |
@@ -95,6 +98,7 @@ lifespan. (This table is the basis for the Stem-injectable canonical block.)
 | Tech stack / dependencies | **Rhizosphere** | |
 | Compliance regime (ISO 27001/42001) | **Biome** | |
 | Microservice plugin (GCP/Datadog/GitHub API) | **Symbiotic Nodule** | |
+| Guest agent / in-VM command listener | **Stoma** | The one pore in the Terrarium wall; guard cells are the isolation policy. |
 | Code index / vector DB | **Rhizome** | |
 | Decision record / memory of *why* | **Taproot** | |
 | Sandbox / container | **Terrarium** | |

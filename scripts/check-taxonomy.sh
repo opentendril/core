@@ -17,7 +17,7 @@
 # real damage, because GLOSSARY.md defines a Sprout as a worker container
 # *(not "agent")* and maps "agent" to **Sprout (body) + Mycorrhizae (mind)**,
 # deliberately decomposing it. Using one word for a Sprout and for an external
-# mind holding a delegation subject collapses a distinction with opposite
+# mind holding a Pollen collapses a distinction with opposite
 # security postures: a Sprout is network-sealed, a delegated external mind is
 # not.
 #
@@ -40,7 +40,7 @@ base="${1:-origin/main}"
 # terms that have actually drifted, not every word standard IT owns. Add to it
 # when a new drift is observed, not in anticipation of one.
 declare -A replacements=(
-  ["agent"]="a Pollinator (an external requester holding a delegation subject), a Sprout (Tendril's own sealed worker), or the Mycorrhizal Network (the LLM) — say which"
+  ["agent"]="a Pollinator (an external requester holding a Pollen), a Sprout (Tendril's own sealed worker), or the Mycorrhizal Network (the LLM) — say which"
   ["sandbox"]="Terrarium"
   ["worker container"]="Sprout"
 )
@@ -57,13 +57,13 @@ targets=(
 
 # The sanctioned boundary and unavoidable literals:
 #   AGENTS.md            - cross-tool standard filename, named in the taxonomy
-#   sprout-agent         - an existing directory and binary name (a path, not prose)
+#   stoma         - an existing directory and binary name (a path, not prose)
 #   INTENT-TRANSLATION   - the Meristem layer, whose job IS the translation
 #   *_test.go            - fixtures reproduce real payloads and branch names
 #   this script          - it necessarily names the banned terms
 exclude_paths=(
   ':!**/AGENTS.md'
-  ':!cmd/sprout-agent/**'
+  ':!cmd/stoma/**'
   ':!**/*_test.go'
   ':!scripts/check-taxonomy.sh'
   ':!INTENT-TRANSLATION.md'
@@ -75,9 +75,9 @@ added="$(git diff "${base}...HEAD" -- "${targets[@]}" "${exclude_paths[@]}" \
 status=0
 for term in "${!replacements[@]}"; do
   # Word-boundary match, case-insensitive, plural tolerated. Lines naming the
-  # boundary file itself, or the sprout-agent path, are not drift.
+  # boundary file itself, or the stoma path, are not drift.
   hits="$(printf '%s\n' "${added}" | grep -IiE "\\b${term}s?\\b" \
-      | grep -viE 'AGENTS\.md|sprout-agent' || true)"
+      | grep -viE 'AGENTS\.md|stoma' || true)"
   if [ -n "${hits}" ]; then
     status=1
     echo "::error::Standard IT term \"${term}\" added inside the organism."

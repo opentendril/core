@@ -160,7 +160,7 @@ func TestBranchListClassifiesEveryRealCategory(t *testing.T) {
 	}
 
 	// Exactly one branch may be deleted, and every classification carries a
-	// reason a delegation subject can act on.
+	// reason a Pollinator can act on.
 	deletable := []string{}
 	for _, branch := range result.Branches {
 		if branch.Deletable {

@@ -196,7 +196,7 @@ func guardDefaultBranchCommit(ctx context.Context, execution GitCommitExecution)
 // The sharing is the point, not an optimization. If status answered this
 // question with its own logic it would eventually disagree with the guard, and
 // a status that says "fine" followed by a commit that is refused is worse than
-// no status at all: it teaches a subject to distrust the read-side and go back
+// no status at all: it teaches a Pollinator to distrust the read-side and go back
 // to guessing. One predicate, two consumers, no drift — and an agreement test
 // pins it.
 type DefaultBranchCommitAssessment struct {
@@ -307,7 +307,7 @@ type apiCommitBranch struct {
 }
 
 // apiCommitMessage is the GraphQL CommitMessage input: the headline (commit
-// subject, i.e. the message's first line) and the optional body (everything
+// pollen, i.e. the message's first line) and the optional body (everything
 // after the first blank line — conventional commit-message shape).
 type apiCommitMessage struct {
 	Headline string `json:"headline"`
@@ -721,7 +721,7 @@ func pullRequestAPIToken(ctx context.Context, cred ResolvedCredential, originURL
 
 // RunGitPullRequest opens a pull request for a branch that has already been
 // pushed. It never pushes: git.pr and git.push are separately grantable
-// operation-classes, so a subject granted only git.pr must not be able to
+// operation-classes, so a Pollinator granted only git.pr must not be able to
 // publish a branch as a side effect.
 func RunGitPullRequest(ctx context.Context, execution GitPRExecution) (GitPRResult, error) {
 	if ctx == nil {
@@ -830,14 +830,14 @@ func RunGitPullRequest(ctx context.Context, execution GitPRExecution) (GitPRResu
 
 // Delegated branch creation — the operation that makes default-branch
 // protection actionable. Without it, refusing a commit on the default branch
-// tells a subject what it may not do and offers nothing it may do, which sends
+// tells a Pollinator what it may not do and offers nothing it may do, which sends
 // it back to running git on the host: the exact behaviour the governed path
 // exists to replace.
 //
 // It is deliberately the narrowest useful operation: create a branch from the
 // current state and switch to it. No delete, no rename, no reset, no upstream
 // tracking changes — a branch operation that can destroy work would need a far
-// stronger authorization story than "the subject asked".
+// stronger authorization story than "the Pollinator asked".
 
 // GitBranchExecution is a fully resolved delegated branch request.
 type GitBranchExecution struct {

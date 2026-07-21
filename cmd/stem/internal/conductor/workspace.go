@@ -9,41 +9,41 @@ import (
 	"sync"
 )
 
-// Per-subject workspace isolation for the delegated git ladder.
+// Per-Pollinator workspace isolation for the delegated git ladder.
 //
 // Without this, every delegated operation ran in one shared directory per
-// substrate. Two delegation subjects granted the same substrate silently corrupted
+// substrate. Two Pollinators granted the same substrate silently corrupted
 // each other: the delegated commit stages the whole tree, so one subject's
 // uncommitted files were committed by the other, onto the other's branch,
 // under the other's identity — destroying exactly the attribution the
-// delegated commit exists to provide. The second subject also branched from
+// delegated commit exists to provide. The second Pollinator also branched from
 // whatever the shared tree happened to be on, so it branched from the first
 // subject's branch rather than from the substrate's.
 //
 // The fix reuses the mechanism the Sprout path already proves
 // (createShadowWorktree): a real git worktree, private to the caller. The
-// isolation unit is the DELEGATION SUBJECT, because the subject is already the
+// isolation unit is the DELEGATION SUBJECT, because the Pollinator is already the
 // unit of authorization and is already bound at connection time — so it
 // requires no new parameter on any operation, and a subject's whole sequence
 // (status, branch, commit, push, pull request) lands in one private tree
-// without the subject tracking anything.
+// without the Pollinator tracking anything.
 //
 // A worktree shares the repository's object store with the substrate, so
 // commits made in it are immediately visible to the substrate as branches —
 // which is what makes push, pull requests, and human review work unchanged.
 // Git also refuses to check out one branch in two worktrees at once, which
-// turns "two subjects on the same branch" from silent corruption into a
+// turns "two Pollinators on the same branch" from silent corruption into a
 // refusal.
 
-// delegatedWorkspaceRoot is where per-subject worktrees live: under the Stem's
+// delegatedWorkspaceRoot is where per-Pollinator worktrees live: under the Stem's
 // own directory, never inside a substrate's checkout (a repository must not be
 // able to widen or observe its own delegation surface).
 func delegatedWorkspaceRoot() string {
 	return filepath.Join(expandHome("~/.tendril"), "workspaces")
 }
 
-// sanitizeWorkspaceComponent makes a substrate or subject name safe as a single
-// path component. Both are operator-controlled today, but the subject is the
+// sanitizeWorkspaceComponent makes a substrate or Pollen value safe as a single
+// path component. Both are operator-controlled today, but the Pollinator is the
 // key an untrusted caller is identified by, so treating either as a raw path
 // component would be the kind of assumption this codebase now explicitly
 // refuses to make.
@@ -68,9 +68,9 @@ func sanitizeWorkspaceComponent(value string) string {
 
 // workspaceLocks serializes operations that target the same workspace.
 //
-// Isolation removes subject-versus-subject corruption; it does not remove one
-// subject issuing two overlapping calls. This is an in-process lock, which
-// covers the realistic case — one Stem serving many delegation subjects — and
+// Isolation removes subject-versus-pollen corruption; it does not remove one
+// pollen issuing two overlapping calls. This is an in-process lock, which
+// covers the realistic case — one Stem serving many Pollinators — and
 // deliberately does NOT claim to coordinate with a separate process on the same
 // directory. Claiming more than it delivers would be worse than the honest
 // limitation.
@@ -89,10 +89,10 @@ func LockWorkspace(path string) func() {
 type DelegatedWorkspace struct {
 	// Path is the directory the operation runs in.
 	Path string
-	// Subject is the delegation subject it belongs to ("" when the operation
+	// Pollen is the Pollen it belongs to ("" when the operation
 	// is not delegated).
-	Subject string
-	// Isolated reports whether Path is a per-subject worktree rather than the
+	Pollen string
+	// Isolated reports whether Path is a per-Pollinator worktree rather than the
 	// substrate's own checkout.
 	Isolated bool
 	// Branch is the owned branch the workspace was placed on ("" for a
@@ -102,25 +102,25 @@ type DelegatedWorkspace struct {
 
 // ResolveDelegatedWorkspace returns the workspace an operation should run in.
 //
-// With no subject — a human at a terminal — it returns the substrate's own
+// With no pollen — a human at a terminal — it returns the substrate's own
 // checkout unchanged: an operator running `tendril git status` in their working
 // copy must see their working copy.
 //
-// With a subject, it returns that subject's private worktree of the substrate,
+// With a Pollinator, it returns that subject's private worktree of the substrate,
 // creating it on first use ON AN OWNED BRANCH cut from the repository's
 // resolved default branch.
 //
 // That branch is the point. Every branch guardrail on the ladder — the
 // default-branch commit refusal, the detached-head refusal, the pull-request
-// head check — exists to catch a subject choosing a branch badly. Handing the
-// subject a workspace that is already on a correct branch removes the choice, so
+// head check — exists to catch a Pollinator choosing a branch badly. Handing the
+// pollen a workspace that is already on a correct branch removes the choice, so
 // there is nothing left to choose badly: a delegated workspace is never on the
 // default branch at any point in its life, and never on no branch at all. The
 // guards remain as a backstop; they simply stop being the mechanism.
 //
 // The branch is registered as an owned reference at creation, which is what
 // later makes it reclaimable rather than litter.
-func ResolveDelegatedWorkspace(ctx context.Context, substrateName, substratePath, subject string, credential ResolvedCredential) (DelegatedWorkspace, error) {
+func ResolveDelegatedWorkspace(ctx context.Context, substrateName, substratePath, pollen string, credential ResolvedCredential) (DelegatedWorkspace, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -128,8 +128,8 @@ func ResolveDelegatedWorkspace(ctx context.Context, substrateName, substratePath
 	if base == "" {
 		return DelegatedWorkspace{}, fmt.Errorf("substrate path is required to resolve a workspace")
 	}
-	trimmedSubject := strings.TrimSpace(subject)
-	if trimmedSubject == "" {
+	trimmedPollen := strings.TrimSpace(pollen)
+	if trimmedPollen == "" {
 		return DelegatedWorkspace{Path: base}, nil
 	}
 
@@ -137,9 +137,9 @@ func ResolveDelegatedWorkspace(ctx context.Context, substrateName, substratePath
 	if strings.TrimSpace(substrateName) == "" {
 		name = sanitizeWorkspaceComponent(filepath.Base(base))
 	}
-	path := filepath.Join(delegatedWorkspaceRoot(), name, sanitizeWorkspaceComponent(trimmedSubject))
+	path := filepath.Join(delegatedWorkspaceRoot(), name, sanitizeWorkspaceComponent(trimmedPollen))
 
-	workspace := DelegatedWorkspace{Path: path, Subject: trimmedSubject, Isolated: true}
+	workspace := DelegatedWorkspace{Path: path, Pollen: trimmedPollen, Isolated: true}
 	if isGitRepo(path) {
 		if current, err := runGitCommitCommandFn(ctx, path, "branch", "--show-current"); err == nil {
 			workspace.Branch = strings.TrimSpace(current)
@@ -149,7 +149,7 @@ func ResolveDelegatedWorkspace(ctx context.Context, substrateName, substratePath
 		// than piling onto something already merged. This is the other half of
 		// owning a reference: it is reclaimed at the moment its purpose ends,
 		// which for a subject's working branch is the moment its work lands.
-		if rotated, err := rotateFinishedWorkspaceBranch(ctx, base, path, workspace.Branch, trimmedSubject, credential); err == nil && rotated != "" {
+		if rotated, err := rotateFinishedWorkspaceBranch(ctx, base, path, workspace.Branch, trimmedPollen, credential); err == nil && rotated != "" {
 			workspace.Branch = rotated
 		}
 		return workspace, nil
@@ -167,9 +167,9 @@ func ResolveDelegatedWorkspace(ctx context.Context, substrateName, substratePath
 		return DelegatedWorkspace{}, err
 	}
 
-	branch := ownedWorkspaceBranchName(trimmedSubject)
+	branch := ownedWorkspaceBranchName(trimmedPollen)
 	if _, err := runGitCommitCommandFn(ctx, base, "worktree", "add", "-b", branch, path, startPoint); err != nil {
-		return DelegatedWorkspace{}, fmt.Errorf("create isolated workspace for subject %q on substrate %q: %w", trimmedSubject, substrateName, err)
+		return DelegatedWorkspace{}, fmt.Errorf("create isolated workspace for pollen %q on substrate %q: %w", trimmedPollen, substrateName, err)
 	}
 	workspace.Branch = branch
 
@@ -183,7 +183,7 @@ func ResolveDelegatedWorkspace(ctx context.Context, substrateName, substratePath
 		Repository: base,
 		Branch:     branch,
 		Purpose:    PurposeDelegatedWorkspace,
-		Subject:    trimmedSubject,
+		Pollen:     trimmedPollen,
 		Base:       baseCommit,
 	}); registerErr != nil {
 		fmt.Fprintf(os.Stderr, "⚠️ Could not record ownership of %s: %v\n", branch, registerErr)
@@ -200,9 +200,9 @@ func ResolveDelegatedWorkspace(ctx context.Context, substrateName, substratePath
 // Anything else is left strictly alone: a branch carrying unmerged commits is
 // the subject's work in progress, and resetting it would destroy exactly what
 // this whole design exists to protect.
-func rotateFinishedWorkspaceBranch(ctx context.Context, base, workspacePath, branch, subject string, credential ResolvedCredential) (string, error) {
+func rotateFinishedWorkspaceBranch(ctx context.Context, base, workspacePath, branch, pollen string, credential ResolvedCredential) (string, error) {
 	branch = strings.TrimSpace(branch)
-	if branch == "" || branch != ownedWorkspaceBranchName(subject) {
+	if branch == "" || branch != ownedWorkspaceBranchName(pollen) {
 		return "", nil
 	}
 
@@ -250,14 +250,14 @@ func rotateFinishedWorkspaceBranch(ctx context.Context, base, workspacePath, bra
 		Repository: base,
 		Branch:     branch,
 		Purpose:    PurposeDelegatedWorkspace,
-		Subject:    subject,
+		Pollen:     pollen,
 		Base:       baseCommit,
 	})
 	return branch, nil
 }
 
 // workspaceStartPoint resolves what a new delegated workspace should be cut
-// from: the remote-tracking default branch when there is one (so a subject
+// from: the remote-tracking default branch when there is one (so a Pollinator
 // starts from what the remote actually has), then the local default branch,
 // then the substrate's head as a last resort.
 //
@@ -285,10 +285,10 @@ func workspaceStartPoint(ctx context.Context, base string) (string, error) {
 	return "", fmt.Errorf("substrate %q has no commits to start a workspace from", base)
 }
 
-// ownedWorkspaceBranchName builds the branch a subject works on. The shape is
+// ownedWorkspaceBranchName builds the branch a Pollinator works on. The shape is
 // uniform and machine-generated on purpose: consistent names are what make the
-// lifecycle trackable, and they carry the subject so a branch is attributable
+// lifecycle trackable, and they carry the Pollinator so a branch is attributable
 // at a glance in any repository listing.
-func ownedWorkspaceBranchName(subject string) string {
-	return fmt.Sprintf("tendril/%s/work", sanitizeWorkspaceComponent(subject))
+func ownedWorkspaceBranchName(pollen string) string {
+	return fmt.Sprintf("tendril/%s/work", sanitizeWorkspaceComponent(pollen))
 }

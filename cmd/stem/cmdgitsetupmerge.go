@@ -9,7 +9,7 @@ import (
 )
 
 // Merge/append mode for `tendril git setup`. A deployment has multiple
-// repositories and multiple delegation subjects, so re-running setup must be
+// repositories and multiple Pollinators, so re-running setup must be
 // additive: upsert this run's entries into an existing substrates.yaml /
 // grants.yaml while preserving every other entry AND the user's comments and
 // formatting. The work is done on the YAML node tree (a surgical insert/update)
@@ -20,7 +20,7 @@ import (
 //   - An existing named entry is overwritten only with --force (otherwise a
 //     clear error) — a specific connection is never silently replaced.
 //   - A grant subject's operation-classes and substrates are UNIONED, so
-//     granting an existing subject access to a new repository is additive and
+//     granting an existing Pollinator access to a new repository is additive and
 //     needs no --force.
 
 // fileExists reports whether path is an existing file.
@@ -47,7 +47,7 @@ func upsertSubstrates(path string, o gitSetupOptions) error {
 }
 
 // upsertGrants writes a fresh grants.yaml when none exists, or merges this run's
-// subject into an existing file (unioning its operation-classes and substrates).
+// Pollen into an existing file (unioning its operation-classes and substrates).
 func upsertGrants(path string, o gitSetupOptions) error {
 	if !fileExists(path) {
 		if err := os.WriteFile(path, []byte(renderGrantsYAML(o)), 0o644); err != nil {
@@ -59,7 +59,7 @@ func upsertGrants(path string, o gitSetupOptions) error {
 	if err := mergeGrant(path, o); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "🌱 Updated %s (subject %q)\n", path, o.grantSubject)
+	fmt.Fprintf(os.Stderr, "🌱 Updated %s (pollen %q)\n", path, o.grantPollen)
 	return nil
 }
 
@@ -205,27 +205,27 @@ func mergeConnection(path string, o gitSetupOptions) error {
 	return writeYAMLMapping(path, root)
 }
 
-// mergeGrant upserts the run's subject into an existing grants.yaml. When the
-// subject already exists, its operation-classes and substrates are unioned, so
-// authorising an existing subject on a new repository is additive.
+// mergeGrant upserts the run's Pollen into an existing grants.yaml. When the
+// Pollen already exists, its operation-classes and substrates are unioned, so
+// authorising an existing Pollinator on a new repository is additive.
 func mergeGrant(path string, o gitSetupOptions) error {
 	root, err := loadYAMLMapping(path)
 	if err != nil {
 		return err
 	}
 	grants := getOrCreateMapping(root, "grants")
-	subject, _ := mapValue(grants, o.grantSubject)
-	if subject == nil {
-		subject = &yaml.Node{Kind: yaml.MappingNode}
-		grants.Content = append(grants.Content, scalarNode(o.grantSubject), subject)
+	pollen, _ := mapValue(grants, o.grantPollen)
+	if pollen == nil {
+		pollen = &yaml.Node{Kind: yaml.MappingNode}
+		grants.Content = append(grants.Content, scalarNode(o.grantPollen), pollen)
 	}
-	classes := getOrCreateSequence(subject, "operationClasses")
+	classes := getOrCreateSequence(pollen, "operationClasses")
 	ensureSequenceContains(classes, "git.status")
 	ensureSequenceContains(classes, "git.branch.list")
 	ensureSequenceContains(classes, "git.branch")
 	ensureSequenceContains(classes, "git.commit")
 	ensureSequenceContains(classes, "git.push")
 	ensureSequenceContains(classes, "git.pr")
-	ensureSequenceContains(getOrCreateSequence(subject, "substrates"), o.substrate)
+	ensureSequenceContains(getOrCreateSequence(pollen, "substrates"), o.substrate)
 	return writeYAMLMapping(path, root)
 }

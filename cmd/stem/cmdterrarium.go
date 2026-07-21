@@ -24,7 +24,7 @@ const (
 	firecrackerKernelSHA256 = "ea5e7d5cf494a8c4ba043259812fc018b44880d70bcbbfc4d57d2760631b1cd6"
 
 	// Statically linked busybox provides the guest userland (sh, echo,
-	// sleep, ...) that sprout-agent executes commands with. The rootfs has
+	// sleep, ...) that stoma executes commands with. The rootfs has
 	// no distribution inside it, so without this every guest command would
 	// fail to resolve.
 	busyboxURL    = "https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox"
@@ -92,7 +92,7 @@ func runInitFirecracker(ctx context.Context) {
 	fmt.Printf("TENDRIL_FC_ROOTFS_PATH=%s\n", rootfsPath)
 }
 
-// buildRootfs assembles the guest root filesystem: sprout-agent as /init,
+// buildRootfs assembles the guest root filesystem: stoma as /init,
 // busybox with its applet links under /bin, and the mount-point directories
 // the guest expects. The image is populated with `mkfs.ext4 -d`, which reads
 // a staging directory straight into the filesystem it creates — no loop
@@ -106,14 +106,14 @@ func buildRootfs(ctx context.Context, busyboxPath, rootfsPath string) error {
 	}
 	defer os.RemoveAll(stagingDir)
 
-	fmt.Println("Compiling sprout-agent for linux/amd64...")
+	fmt.Println("Compiling stoma for linux/amd64...")
 	initPath := filepath.Join(stagingDir, "init")
-	cmd := exec.CommandContext(ctx, "go", "build", "-o", initPath, "./cmd/sprout-agent")
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", initPath, "./cmd/stoma")
 	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("compile sprout-agent: %w", err)
+		return fmt.Errorf("compile stoma: %w", err)
 	}
 	if err := os.Chmod(initPath, 0o755); err != nil {
 		return fmt.Errorf("chmod init: %w", err)

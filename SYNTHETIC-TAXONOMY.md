@@ -153,7 +153,7 @@ growth cycle:
     a deliverable, and the chain reads exactly as botany does: *Pollinator →
     growth → Fruit*.
 
-    A Pollinator is identified by its **delegation subject** — the bound identity
+    A Pollinator is identified by its **Pollen** — the bound identity
     a grant names — and may run only the operation-classes it has been granted;
     no grant, no access. The mutualism is real but not assumed: pollinators are
     also how disease travels between plants, which is precisely why the grant
@@ -171,6 +171,13 @@ growth cycle:
     word is exactly the imprecision the taxonomy exists to prevent — a Sprout is
     sealed off from the network, a Pollinator is the thing being granted mediated
     access to it.
+*   **Stoma** — the **single controlled aperture** in a **Terrarium** wall. In
+    botany a stoma is the pore through which everything passes between a plant's
+    sealed interior and the outside, opened and closed by guard cells. Here it is
+    the guest-side listener inside an isolated Terrarium: commands enter through
+    it and results leave through it, and **nothing else crosses the wall**. A
+    Terrarium has exactly one Stoma, which is the whole security property stated
+    as anatomy.
 *   **Greenhouse** — the **Command Center UI**. The pane of glass through which the
     Botanist watches the headless organism grow via telemetry (REST/WebSockets).
 

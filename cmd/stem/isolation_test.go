@@ -14,7 +14,7 @@ import (
 
 // Concurrency safety for the delegated git ladder.
 //
-// Before isolation, two subjects granted the same substrate silently corrupted
+// Before isolation, two Pollinators granted the same substrate silently corrupted
 // each other: the delegated commit stages the whole tree, the tree was shared,
 // so one subject's uncommitted files were committed by the other, onto the
 // other's branch, under the other's identity — destroying the attribution the
@@ -54,26 +54,26 @@ func newIsolationSubstrate(t *testing.T) (name, path string) {
 	return "shared", repo
 }
 
-func subjectContext(subject string) context.Context {
-	return core.WithDelegationSubject(context.Background(), subject)
+func pollenContext(pollen string) context.Context {
+	return core.WithPollen(context.Background(), pollen)
 }
 
-// TestDelegatedSubjectsGetSeparateWorkspaces is the core property: two
-// subjects on one substrate never share a working tree.
-func TestDelegatedSubjectsGetSeparateWorkspaces(t *testing.T) {
+// TestDelegatedPollensGetSeparateWorkspaces is the core property: two
+// pollen on one substrate never share a working tree.
+func TestDelegatedPollensGetSeparateWorkspaces(t *testing.T) {
 	name, path := newIsolationSubstrate(t)
 
-	first, err := conductor.ResolveDelegatedWorkspace(subjectContext("agent-a"), name, path, "agent-a", conductor.ResolvedCredential{})
+	first, err := conductor.ResolveDelegatedWorkspace(pollenContext("agent-a"), name, path, "agent-a", conductor.ResolvedCredential{})
 	if err != nil {
 		t.Fatalf("resolve for agent-a: %v", err)
 	}
-	second, err := conductor.ResolveDelegatedWorkspace(subjectContext("agent-b"), name, path, "agent-b", conductor.ResolvedCredential{})
+	second, err := conductor.ResolveDelegatedWorkspace(pollenContext("agent-b"), name, path, "agent-b", conductor.ResolvedCredential{})
 	if err != nil {
 		t.Fatalf("resolve for agent-b: %v", err)
 	}
 
 	if first.Path == second.Path {
-		t.Fatal("two subjects resolved to the same workspace — this is exactly the shared tree that let one agent commit another's work")
+		t.Fatal("two Pollinators resolved to the same workspace — this is exactly the shared tree that let one Pollinator commit another's work")
 	}
 	if first.Path == path || second.Path == path {
 		t.Fatal("a delegated workspace resolved to the substrate's own checkout")
@@ -81,10 +81,10 @@ func TestDelegatedSubjectsGetSeparateWorkspaces(t *testing.T) {
 	if !first.Isolated || !second.Isolated {
 		t.Fatalf("workspaces not reported as isolated: %+v %+v", first, second)
 	}
-	// Reuse is stable: the same subject always returns to its own tree, which
+	// Reuse is stable: the same pollen always returns to its own tree, which
 	// is what lets an agent's sequence of calls stay consistent without the
 	// agent tracking anything.
-	again, err := conductor.ResolveDelegatedWorkspace(subjectContext("agent-a"), name, path, "agent-a", conductor.ResolvedCredential{})
+	again, err := conductor.ResolveDelegatedWorkspace(pollenContext("agent-a"), name, path, "agent-a", conductor.ResolvedCredential{})
 	if err != nil {
 		t.Fatalf("re-resolve for agent-a: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestDelegatedSubjectsGetSeparateWorkspaces(t *testing.T) {
 }
 
 // TestNonDelegatedCallUsesOperatorCheckout: a human at a terminal carries no
-// subject and must keep seeing their own working copy.
+// pollen and must keep seeing their own working copy.
 func TestNonDelegatedCallUsesOperatorCheckout(t *testing.T) {
 	name, path := newIsolationSubstrate(t)
 
@@ -110,21 +110,21 @@ func TestNonDelegatedCallUsesOperatorCheckout(t *testing.T) {
 	}
 }
 
-// TestConcurrentSubjectsDoNotCorruptEachOther replays the exact interleaving
+// TestConcurrentPollenDoNotCorruptEachOther replays the exact interleaving
 // that was reproduced before this work: A branches and starts editing, B
 // branches and commits. Before isolation, B's commit contained A's file, on
 // B's branch, under B's identity, and A's branch was left empty.
-func TestConcurrentSubjectsDoNotCorruptEachOther(t *testing.T) {
+func TestConcurrentPollenDoNotCorruptEachOther(t *testing.T) {
 	name, path := newIsolationSubstrate(t)
 	credential := conductor.ResolvedCredential{
 		Identity: conductor.ResolvedIdentity{Name: "Bot", Email: "bot@example.com"},
 	}
 
-	agentA, err := conductor.ResolveDelegatedWorkspace(subjectContext("agent-a"), name, path, "agent-a", conductor.ResolvedCredential{})
+	agentA, err := conductor.ResolveDelegatedWorkspace(pollenContext("agent-a"), name, path, "agent-a", conductor.ResolvedCredential{})
 	if err != nil {
 		t.Fatalf("workspace for agent-a: %v", err)
 	}
-	agentB, err := conductor.ResolveDelegatedWorkspace(subjectContext("agent-b"), name, path, "agent-b", conductor.ResolvedCredential{})
+	agentB, err := conductor.ResolveDelegatedWorkspace(pollenContext("agent-b"), name, path, "agent-b", conductor.ResolvedCredential{})
 	if err != nil {
 		t.Fatalf("workspace for agent-b: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestConcurrentSubjectsDoNotCorruptEachOther(t *testing.T) {
 // delegated workspace is ever on it.
 func TestIsolatedWorkspaceArrivesReadyToWork(t *testing.T) {
 	name, path := newIsolationSubstrate(t)
-	workspace, err := conductor.ResolveDelegatedWorkspace(subjectContext("agent-a"), name, path, "agent-a", conductor.ResolvedCredential{})
+	workspace, err := conductor.ResolveDelegatedWorkspace(pollenContext("agent-a"), name, path, "agent-a", conductor.ResolvedCredential{})
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestIsolatedWorkspaceArrivesReadyToWork(t *testing.T) {
 // nobody can ever decide is finished, which is how the system came to litter.
 func TestOwnedWorkspaceBranchIsRegistered(t *testing.T) {
 	name, path := newIsolationSubstrate(t)
-	workspace, err := conductor.ResolveDelegatedWorkspace(subjectContext("agent-a"), name, path, "agent-a", conductor.ResolvedCredential{})
+	workspace, err := conductor.ResolveDelegatedWorkspace(pollenContext("agent-a"), name, path, "agent-a", conductor.ResolvedCredential{})
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestOwnedWorkspaceBranchIsRegistered(t *testing.T) {
 	for _, ref := range owned {
 		if ref.Branch == workspace.Branch {
 			found = true
-			if ref.Subject != "agent-a" || ref.Purpose != conductor.PurposeDelegatedWorkspace {
+			if ref.Pollen != "agent-a" || ref.Purpose != conductor.PurposeDelegatedWorkspace {
 				t.Errorf("owned reference = %+v, want it attributed to agent-a's workspace", ref)
 			}
 			if ref.Base == "" {
@@ -294,14 +294,14 @@ func TestOwnedWorkspaceBranchIsRegistered(t *testing.T) {
 	}
 }
 
-// TestWorkspaceBranchRotatesWhenFinished: a subject returning to its workspace
+// TestWorkspaceBranchRotatesWhenFinished: a Pollinator returning to its workspace
 // after its work landed starts from the current default branch, rather than
 // piling the next task onto a branch that is already merged. A workspace whose
 // branch holds unmerged commits is left strictly alone — that is work in
 // progress, and resetting it would destroy exactly what this design protects.
 func TestWorkspaceBranchRotatesWhenFinished(t *testing.T) {
 	name, path := newIsolationSubstrate(t)
-	ctx := subjectContext("agent-a")
+	ctx := pollenContext("agent-a")
 
 	workspace, err := conductor.ResolveDelegatedWorkspace(ctx, name, path, "agent-a", conductor.ResolvedCredential{})
 	if err != nil {
@@ -329,7 +329,7 @@ func TestWorkspaceBranchRotatesWhenFinished(t *testing.T) {
 		t.Fatalf("workspace head = %s, want it rebuilt on the current default %s", head, movedHead)
 	}
 
-	// Now the subject has unmerged work: the workspace must be left alone.
+	// Now the Pollinator has unmerged work: the workspace must be left alone.
 	if err := os.WriteFile(filepath.Join(again.Path, "wip.txt"), []byte("in progress\n"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}

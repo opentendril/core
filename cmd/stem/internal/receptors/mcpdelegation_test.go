@@ -17,7 +17,7 @@ import (
 // handler, the bus (for audit assertions), a counter of executed runs, and the
 // last PassthroughSpec the stubbed passthrough port received (so tests can
 // assert exactly which egress allow-list reached the run). The delegation gate
-// and subject are left for each test to bind (or not) via WithDelegation, so
+// and pollen are left for each test to bind (or not) via WithDelegation, so
 // every posture — unwired, subjectless, granted — is exercised through the
 // same fixture.
 func newMCPDelegationTestHandler(t *testing.T) (*MCPHandler, *eventbus.Bus, *atomic.Int64, *core.PassthroughSpec) {
@@ -57,10 +57,10 @@ func newMCPDelegationTestHandler(t *testing.T) (*MCPHandler, *eventbus.Bus, *ato
 }
 
 // mcpDelegationGrant covers every delegated operation-class on the "core"
-// substrate for the bind-time subject the tests use.
+// substrate for the bind-time pollen the tests use.
 func mcpDelegationGrant() core.DelegationGrant {
 	return core.DelegationGrant{
-		Subject:          "mcp-agent",
+		Pollen:           "mcp-agent",
 		OperationClasses: []string{core.CapSproutGrow, core.CapPassthroughRun, core.CapGitCommit},
 		Substrates:       []string{"core"},
 	}
@@ -138,9 +138,9 @@ func TestMCPDelegatedCapabilitiesDeniedWithNilGate(t *testing.T) {
 	}
 }
 
-// TestMCPDelegatedCapabilitiesDeniedWithoutBoundSubject covers the second
+// TestMCPDelegatedCapabilitiesDeniedWithoutBoundPollen covers the second
 // deny-closed leg: a gate is wired and a covering grant exists, but no
-// subject is bound to the connection — every delegated-class tool is still
+// pollen is bound to the connection — every delegated-class tool is still
 // denied and the denial is audited to the bus.
 func TestMCPDelegatedCapabilitiesDeniedWithoutBoundSubject(t *testing.T) {
 	handler, bus, executed, _ := newMCPDelegationTestHandler(t)
@@ -150,14 +150,14 @@ func TestMCPDelegatedCapabilitiesDeniedWithoutBoundSubject(t *testing.T) {
 	for name, args := range delegatedToolCalls() {
 		text, isError := mcpCallTool(t, handler, name, args)
 		if !isError {
-			t.Errorf("%s without a bound subject was not denied: %q", name, text)
+			t.Errorf("%s without a bound pollen was not denied: %q", name, text)
 		}
 		if !strings.Contains(text, "delegation is not configured for this MCP session") {
 			t.Errorf("%s denial text = %q, want the not-configured reason", name, text)
 		}
 	}
 	if executed.Load() != 0 {
-		t.Fatalf("executed %d delegated run(s) without a bound subject, want 0", executed.Load())
+		t.Fatalf("executed %d delegated run(s) without a bound pollen, want 0", executed.Load())
 	}
 
 	event, found := lastDelegationEvent(bus)
@@ -169,8 +169,8 @@ func TestMCPDelegatedCapabilitiesDeniedWithoutBoundSubject(t *testing.T) {
 	}
 }
 
-// TestMCPDelegatedCapabilitiesAuthorizedByMatchingGrant: with a bound subject
-// and an active grant covering {subject, operation-class, substrate}, every
+// TestMCPDelegatedCapabilitiesAuthorizedByMatchingGrant: with a bound pollen
+// and an active grant covering {pollen, operation-class, substrate}, every
 // delegated-class tool — including the deprecated sproutTendril alias —
 // dispatches through the Core, and each exercise is audited.
 func TestMCPDelegatedCapabilitiesAuthorizedByMatchingGrant(t *testing.T) {
@@ -196,12 +196,12 @@ func TestMCPDelegatedCapabilitiesAuthorizedByMatchingGrant(t *testing.T) {
 	if event.Type != eventbus.EventDelegationAuthorized {
 		t.Fatalf("audit event type = %s, want %s", event.Type, eventbus.EventDelegationAuthorized)
 	}
-	if event.Data["subject"] != "mcp-agent" {
-		t.Fatalf("audit event subject = %v, want mcp-agent", event.Data["subject"])
+	if event.Data["pollen"] != "mcp-agent" {
+		t.Fatalf("audit event pollen = %v, want mcp-agent", event.Data["pollen"])
 	}
 }
 
-// TestMCPDelegatedCapabilityDeniedWithoutCoveringGrant: a bound subject with
+// TestMCPDelegatedCapabilityDeniedWithoutCoveringGrant: a bound pollen with
 // zero grants is denied per-invocation, the execution port is never reached,
 // and the denial is audited.
 func TestMCPDelegatedCapabilityDeniedWithoutCoveringGrant(t *testing.T) {
@@ -255,7 +255,7 @@ func TestMCPDelegatedCapabilityDeniedOnSubstrateMismatch(t *testing.T) {
 
 // TestMCPNonDelegatedCapabilityUnaffected is the security-first regression:
 // a non-delegated capability dispatches exactly as today — with no gate, with
-// a gate but no subject, and with both — and produces no delegation audit
+// a gate but no pollen, and with both — and produces no delegation audit
 // event.
 func TestMCPNonDelegatedCapabilityUnaffected(t *testing.T) {
 	handler, bus, _, _ := newMCPDelegationTestHandler(t)
@@ -272,10 +272,10 @@ func TestMCPNonDelegatedCapabilityUnaffected(t *testing.T) {
 
 	gate := &DelegationGate{Authorizer: core.NewDelegationAuthorizer(nil), Bus: bus}
 	handler = handler.WithDelegation(gate, "")
-	assertListSessions("gate without subject")
+	assertListSessions("gate without pollen")
 
 	handler = handler.WithDelegation(gate, "mcp-agent")
-	assertListSessions("gate with subject")
+	assertListSessions("gate with pollen")
 
 	if _, found := lastDelegationEvent(bus); found {
 		t.Fatal("non-delegated invocations produced a delegation audit event")

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fails if a delegated git operation is wired to run in a raw substrate path
-# instead of the resolved, per-subject workspace.
+# instead of the resolved, per-Pollinator workspace.
 #
 # Why this exists: before workspace isolation, every delegated operation ran in
 # one shared directory per substrate. Two agents granted the same substrate
@@ -11,7 +11,7 @@
 # the documented setup.
 #
 # The fix routes every operation through resolveGitWorkspace, which returns a
-# per-subject worktree for a delegated call and the operator's own checkout for
+# per-Pollinator worktree for a delegated call and the operator's own checkout for
 # a direct one. That routing is easy to bypass by accident: a new operation
 # that resolves the substrate's path itself looks perfectly reasonable in
 # review and reintroduces the corruption. So it is checked rather than
@@ -35,7 +35,7 @@ offenders="$(grep -nE '^[[:space:]]*Workspace:' "${adapter}" \
     | grep -vE 'Workspace:[[:space:]]+workspace\.Path,' || true)"
 
 if [ -n "${offenders}" ]; then
-  echo "::error::A delegated git operation is not using the resolved per-subject workspace."
+  echo "::error::A delegated git operation is not using the resolved per-Pollinator workspace."
   echo "Route it through resolveGitWorkspace(...) and pass workspace.Path, so two agents on"
   echo "one substrate cannot share a working tree and commit each other's changes."
   echo "Offending lines in ${adapter}:"
@@ -52,4 +52,4 @@ if [ "${calls}" -lt "${executions}" ]; then
   exit 1
 fi
 
-echo "✅ All ${executions} delegated git operation(s) run in a resolved per-subject workspace."
+echo "✅ All ${executions} delegated git operation(s) run in a resolved per-Pollinator workspace."

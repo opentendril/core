@@ -93,7 +93,7 @@ type GitPushResult struct {
 // GitPRInput asks the Stem to open a pull request for a branch that has
 // already been published. Opening a pull request is a separate operation-class
 // from pushing on purpose: operation-classes are separately grantable, so a
-// subject granted only git.pr must never be able to publish a branch as a side
+// pollen granted only git.pr must never be able to publish a branch as a side
 // effect. The subject's loop is git.commit → git.push → git.pr.
 type GitPRInput struct {
 	// Substrate is the absolute path or named substrate key of the target
@@ -149,7 +149,7 @@ type GitPRResult struct {
 
 // GitBranchInput asks the Stem to create (or switch to) a feature branch in a
 // substrate's workspace. It exists so that default-branch protection has a
-// correct next move: a subject told "commit on a feature branch" must be able
+// correct next move: a Pollinator told "commit on a feature branch" must be able
 // to make one through Tendril, or the guardrail simply pushes it off the
 // governed path.
 type GitBranchInput struct {
@@ -184,7 +184,7 @@ type GitBranchResult struct {
 
 // GitStatusInput asks the Stem to report a substrate's git state. It is the
 // read-side of the ladder: every write operation carries a guardrail that
-// exists because a delegation subject guessed something it could not see, and this is how
+// exists because a Pollinator guessed something it could not see, and this is how
 // it sees instead. The answer is computed from the guards' own view, so a
 // prediction here and a refusal there can never disagree.
 type GitStatusInput struct {
@@ -257,15 +257,15 @@ type GitStatusResult struct {
 	BlockedReason string `json:"blockedReason,omitempty"`
 	// Workspace is the directory this status describes. A delegated caller
 	// works in its own isolated worktree, not the substrate's checkout, and
-	// a subject that cannot see that it is isolated will eventually assume it
+	// a Pollinator that cannot see that it is isolated will eventually assume it
 	// is not — the same "invited to guess" failure the read-side exists to
 	// remove. So the isolation is reported rather than implied.
 	Workspace string `json:"workspace,omitempty"`
-	// Isolated reports that Workspace is a per-subject worktree.
+	// Isolated reports that Workspace is a per-Pollinator worktree.
 	Isolated bool `json:"isolated"`
-	// Subject is the delegation subject the workspace belongs to ("" for a
+	// Pollen is the Pollen the workspace belongs to ("" for a
 	// direct, non-delegated invocation).
-	Subject string `json:"subject,omitempty"`
+	Pollen string `json:"pollen,omitempty"`
 }
 
 // GitBranchListInput asks the Stem to classify a substrate's local branches.

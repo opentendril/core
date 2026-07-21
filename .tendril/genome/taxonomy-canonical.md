@@ -24,7 +24,8 @@ the authority; fuller docs are `SYNTHETIC-TAXONOMY.md` (concept) and
 - **Phloem**: vascular channel carrying diffs (outputs) down to the Substrate.
 - **Phytomer**: a session — one persistent interaction thread; the Meristem initiates it and Sprouts emerge from it. (An **axillary bud** on it buds into a new Phytomer chain: a branch, parallel line, or recursion.)
 - **Plasmid**: a modular, injectable block of context or tools (*a skill*).
-- **Pollinator**: an *external* requester that reaches IN and asks for governed work — a Botanist, or an external Mycorrhizal mind over a governed interface. Identified by a **delegation subject**; granted operation-classes; no grant, no access. The mirror of a Symbiotic Nodule (which the organism reaches OUT to). Never call it an "agent": it is neither a Sprout (sealed internal worker) nor the Mycorrhizal Network itself.
+- **Pollen**: the identity a Pollinator presents and a grant names — the trust-root a delegated invocation is authorised as. Never the actor itself: Pollen is *what is presented*, a Pollinator is *who presents it*.
+- **Pollinator**: an *external* requester that reaches IN and asks for governed work — a Botanist, or an external Mycorrhizal mind over a governed interface. Identified by a **Pollen**; granted operation-classes; no grant, no access. The mirror of a Symbiotic Nodule (which the organism reaches OUT to). Never call it an "agent": it is neither a Sprout (sealed internal worker) nor the Mycorrhizal Network itself.
 - **Resin**: live internal log trace (hardens into Amber).
 - **Rhizome**: the code/AST index of the Substrate.
 - **Rhizosphere**: the *external* ecosystem the Roots tap — the providers, Docker, git, MCP themselves (the outside world).
@@ -33,6 +34,7 @@ the authority; fuller docs are `SYNTHETIC-TAXONOMY.md` (concept) and
 - **Sequence**: an ordered YAML workflow of steps.
 - **Sprout**: an ephemeral, isolated worker that does one unit of work.
 - **Stem**: the Go orchestrator/router. Not a brain; no business logic.
+- **Stoma**: the single controlled aperture in a Terrarium wall — the guest-side listener through which commands enter and results leave. A Terrarium has exactly one.
 - **Substrate**: the repository being cultivated (the soil).
 - **Symbiotic Nodule** (Nodule): an external *service* capability (GCP, GitHub API).
 - **Taproot**: the persistent store of deliberation (conversations, RFCs, decisions+rationale, reviews).

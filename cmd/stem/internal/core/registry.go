@@ -97,7 +97,7 @@ func CapabilityNames() []string {
 // DelegatedCapabilityNames returns the canonical delegated operation-classes,
 // sorted: the capabilities that execute work on behalf of an external agent
 // and therefore must pass the delegation control plane (a grant covering
-// {subject, operation-class, substrate}) before they run on an agent-facing
+// {pollen, operation-class, substrate}) before they run on a Pollinator-facing
 // surface. This list is the single source of truth for which capabilities are
 // delegated; the surfaces that gate per-invocation consult it.
 func DelegatedCapabilityNames() []string {

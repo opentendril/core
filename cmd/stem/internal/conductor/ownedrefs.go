@@ -46,8 +46,7 @@ var ownedRefsMu sync.Mutex
 type OwnedRefPurpose string
 
 const (
-	// PurposeDelegatedWorkspace is a branch created to give a delegation
-	// subject somewhere to work.
+	// PurposeDelegatedWorkspace is a branch created to give a Pollinator somewhere to work.
 	PurposeDelegatedWorkspace OwnedRefPurpose = "delegated-workspace"
 	// PurposeSproutIsolation is a branch created to keep a Sprout run off the
 	// default branch.
@@ -62,8 +61,8 @@ type OwnedRef struct {
 	Branch string `json:"branch"`
 	// Purpose is why it was created.
 	Purpose OwnedRefPurpose `json:"purpose"`
-	// Subject is the delegation subject it belongs to, when it has one.
-	Subject string `json:"subject,omitempty"`
+	// Pollen is the Pollen it belongs to, when it has one.
+	Pollen string `json:"pollen,omitempty"`
 	// Base is the commit the branch was cut from, which is what makes "has
 	// this produced anything yet" answerable without a network call.
 	Base string `json:"base,omitempty"`

@@ -33,12 +33,12 @@ type MCPHandler struct {
 	// delegated capabilities are unreachable over MCP while every
 	// non-delegated capability dispatches untouched.
 	delegation *DelegationGate
-	// delegationSubject is the delegation subject bound to this MCP
-	// connection at bind-time. The subject is a property of the trusted
+	// pollen is the Pollen bound to this MCP
+	// connection at bind-time. The pollen is a property of the trusted
 	// connection — never declared per-invocation in tool arguments, so a
-	// caller can never self-declare its own subject. Empty means no subject
+	// caller can never self-declare its own pollen. Empty means no pollen
 	// is bound and every delegated-class invocation is denied (deny-closed).
-	delegationSubject string
+	pollen string
 }
 
 func NewMCPHandler() *MCPHandler {
@@ -91,14 +91,13 @@ func (h *MCPHandler) WithCore(coreSvc core.Core) *MCPHandler {
 	return h
 }
 
-// WithDelegation binds the delegation gate and the bind-time delegation
-// subject onto this MCP adapter and returns it for chaining. Every
+// WithDelegation binds the delegation gate and the bind-time Pollen onto this MCP adapter and returns it for chaining. Every
 // delegated-class tool invocation on this connection is authorized as that
-// one subject against the active grants — the same per-invocation
+// one pollen against the active grants — the same per-invocation
 // authorization the REST adapters apply.
-func (h *MCPHandler) WithDelegation(gate *DelegationGate, subject string) *MCPHandler {
+func (h *MCPHandler) WithDelegation(gate *DelegationGate, pollen string) *MCPHandler {
 	h.delegation = gate
-	h.delegationSubject = strings.TrimSpace(subject)
+	h.pollen = strings.TrimSpace(pollen)
 	return h
 }
 
@@ -146,19 +145,19 @@ func (h *MCPHandler) isCoreCapability(name string) bool {
 }
 
 // authorizeDelegatedTool gates one delegated-class tool invocation against
-// the bind-time subject and the active grants. Deny-closed: with no gate
-// bound or no subject bound the invocation is denied outright, so no MCP path
+// the bind-time pollen and the active grants. Deny-closed: with no gate
+// bound or no pollen bound the invocation is denied outright, so no MCP path
 // can ever reach a delegated capability ungoverned. The substrate is read
 // from the tool arguments' "substrate" field — the field every delegated
 // capability carries.
 func (h *MCPHandler) authorizeDelegatedTool(operationClass string, args map[string]interface{}) core.DelegationDecision {
 	substrate, _ := args["substrate"].(string)
 	request := core.DelegationRequest{
-		Subject:        h.delegationSubject,
+		Pollen:         h.pollen,
 		OperationClass: operationClass,
 		Substrate:      strings.TrimSpace(substrate),
 	}
-	if h.delegation == nil || h.delegationSubject == "" {
+	if h.delegation == nil || h.pollen == "" {
 		decision := core.DelegationDecision{Reason: "delegation is not configured for this MCP session"}
 		// Audit the denial when a gate is wired; a missing gate makes the
 		// audit impossible (best-effort, like every gate decision) but never
@@ -188,7 +187,7 @@ func (h *MCPHandler) callCoreCapability(id interface{}, name string, args map[st
 }
 
 // callCoreCapabilityAs dispatches with a caller-supplied context, so a
-// delegated invocation can carry its authorized subject. The subject selects
+// delegated invocation can carry its authorized pollen. The pollen selects
 // the isolated workspace the operation runs in and therefore never travels in
 // the arguments: a caller that could name it could claim another subject's
 // workspace. It is bound by the trusted launch configuration at connection
@@ -576,7 +575,7 @@ func (h *MCPHandler) ProcessMCPMessage(reqBytes []byte) []byte {
 		if h.isCoreCapability(params.Name) {
 			// Delegated operation-classes must pass the delegation gate
 			// before the Core is reached — the same per-invocation
-			// authorization the REST adapters apply, keyed by the subject
+			// authorization the REST adapters apply, keyed by the pollen
 			// bound to this MCP connection at bind-time. Non-delegated
 			// capabilities dispatch untouched (their decision stays the zero
 			// value, which carries no grant).
@@ -587,7 +586,7 @@ func (h *MCPHandler) ProcessMCPMessage(reqBytes []byte) []byte {
 				if !decision.Authorized {
 					return h.formatDelegationDenied(req.ID, decision)
 				}
-				callCtx = core.WithDelegationSubject(callCtx, h.delegationSubject)
+				callCtx = core.WithPollen(callCtx, h.pollen)
 			}
 			if params.Name == core.CapSproutGrow {
 				// Origin and the pinned stdio session are MCP-surface metadata

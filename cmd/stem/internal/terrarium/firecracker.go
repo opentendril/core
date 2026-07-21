@@ -82,7 +82,7 @@ func (p *FirecrackerProvider) Create(ctx context.Context, spec TerrariumSpec) (T
 			KernelImagePath: kernelPath,
 			// init=/init is required: the kernel only searches /init on an
 			// initramfs. On a disk rootfs it tries /sbin/init, /etc/init,
-			// /bin/init, then /bin/sh — sprout-agent would never start.
+			// /bin/init, then /bin/sh — stoma would never start.
 			BootArgs: "console=ttyS0 reboot=k panic=1 pci=off init=/init",
 		},
 		Drives: []fcDrive{
@@ -144,7 +144,7 @@ func (p *FirecrackerProvider) Create(ctx context.Context, spec TerrariumSpec) (T
 
 	if err := terrarium.waitForAgent(bootCtx); err != nil {
 		_ = terrarium.Stop(context.Background())
-		return nil, fmt.Errorf("sprout-agent not ready: %w", err)
+		return nil, fmt.Errorf("stoma not ready: %w", err)
 	}
 
 	if spec.Timeout > 0 {
@@ -374,7 +374,7 @@ func (s *firecrackerTerrarium) Stop(ctx context.Context) error {
 	return s.stopErr
 }
 
-// waitForAgent polls the vsock until the sprout-agent responds to a ping.
+// waitForAgent polls the vsock until the stoma responds to a ping.
 func (s *firecrackerTerrarium) waitForAgent(ctx context.Context) error {
 	for {
 		pingCtx, pingCancel := context.WithTimeout(ctx, fcDialRetryDelay*2)
@@ -524,7 +524,7 @@ type fcVsock struct {
 	UDSPath  string `json:"uds_path"`
 }
 
-// Agent wire protocol types (mirrored in cmd/sprout-agent/main.go).
+// Agent wire protocol types (mirrored in cmd/stoma/main.go).
 
 type fcAgentRequest struct {
 	Type  string        `json:"type"`

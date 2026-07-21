@@ -71,7 +71,7 @@ func TestDelegatedPassthroughDeniedAndAuditedWithoutGrant(t *testing.T) {
 	mux, bus, executed, _ := newPassthroughTestHandler(t, nil)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/passthrough/run", strings.NewReader(passthroughRunBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -89,18 +89,18 @@ func TestDelegatedPassthroughDeniedAndAuditedWithoutGrant(t *testing.T) {
 	if event.Type != eventbus.EventDelegationDenied {
 		t.Fatalf("audit event type = %s, want %s", event.Type, eventbus.EventDelegationDenied)
 	}
-	if event.Data["subject"] != "local-agent" || event.Data["operationClass"] != core.CapPassthroughRun {
-		t.Fatalf("audit event data = %v, want the denied request's subject and operation-class", event.Data)
+	if event.Data["pollen"] != "local-agent" || event.Data["operationClass"] != core.CapPassthroughRun {
+		t.Fatalf("audit event data = %v, want the denied request's pollen and operation-class", event.Data)
 	}
 }
 
 // TestDelegatedPassthroughPermittedByMatchingGrant: an active grant covering
-// {subject, passthrough.run, substrate} lets the invocation run, the exercise
+// {pollen, passthrough.run, substrate} lets the invocation run, the exercise
 // is audited, and — the egress-threading contract — the grant's allow-list
 // (and only the grant's) reaches the execution port.
 func TestDelegatedPassthroughPermittedByMatchingGrant(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapPassthroughRun},
 		Substrates:       []string{"core"},
 		Egress:           []string{"proxy.golang.org"},
@@ -108,7 +108,7 @@ func TestDelegatedPassthroughPermittedByMatchingGrant(t *testing.T) {
 	mux, bus, executed, lastSpec := newPassthroughTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/passthrough/run", strings.NewReader(passthroughRunBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -135,14 +135,14 @@ func TestDelegatedPassthroughPermittedByMatchingGrant(t *testing.T) {
 // substrate scope is enforced on the passthrough route.
 func TestDelegatedPassthroughDeniedOnSubstrateMismatch(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapPassthroughRun},
 		Substrates:       []string{"another-substrate"},
 	}}
 	mux, _, executed, _ := newPassthroughTestHandler(t, grants)
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/passthrough/run", strings.NewReader(passthroughRunBody))
-	request.Header.Set(DelegationSubjectHeader, "local-agent")
+	request.Header.Set(PollenHeader, "local-agent")
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, request)
 
@@ -159,7 +159,7 @@ func TestDelegatedPassthroughDeniedOnSubstrateMismatch(t *testing.T) {
 // widens the execution's allow-list — with or without a delegation marker.
 func TestPassthroughCallerCannotSupplyEgress(t *testing.T) {
 	grants := []core.DelegationGrant{{
-		Subject:          "local-agent",
+		Pollen:           "local-agent",
 		OperationClasses: []string{core.CapPassthroughRun},
 		Substrates:       []string{"core"},
 		// The grant deliberately opens nothing.
@@ -179,7 +179,7 @@ func TestPassthroughCallerCannotSupplyEgress(t *testing.T) {
 	}
 
 	delegated := httptest.NewRequest(http.MethodPost, "/v1/passthrough/run", strings.NewReader(smuggled))
-	delegated.Header.Set(DelegationSubjectHeader, "local-agent")
+	delegated.Header.Set(PollenHeader, "local-agent")
 	delegatedRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(delegatedRecorder, delegated)
 	if delegatedRecorder.Code != http.StatusOK {
@@ -211,7 +211,7 @@ func TestPassthroughDelegatedDeniedWithNilGate(t *testing.T) {
 	}
 
 	delegated := httptest.NewRequest(http.MethodPost, "/v1/passthrough/run", strings.NewReader(passthroughRunBody))
-	delegated.Header.Set(DelegationSubjectHeader, "local-agent")
+	delegated.Header.Set(PollenHeader, "local-agent")
 	delegatedRecorder := httptest.NewRecorder()
 	mux.ServeHTTP(delegatedRecorder, delegated)
 	if delegatedRecorder.Code != http.StatusForbidden {
