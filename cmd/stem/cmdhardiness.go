@@ -345,7 +345,14 @@ func executableIntegrityFinding(tendrilDir string) hardinessFinding {
 		finding.Detail += "\n"
 	}
 	finding.Detail += "This is the binary THIS invocation ran, not necessarily the Stem's: no\n" +
-		"identity record was readable at " + stemIdentityPath(tendrilDir) + "."
+		"identity record was readable at " + stemIdentityPath(tendrilDir) + ".\n" +
+		"Reported as a note rather than a weakness for that reason — what the Stem\n" +
+		"runs has not been established here. Run this as the Stem for the real answer."
+	// Without a record this cannot be the Stem's binary as far as the report
+	// knows, so it must not assert an exposure of the Stem's.
+	if finding.Severity == "weak" {
+		finding.Severity = "note"
+	}
 	return finding
 }
 
