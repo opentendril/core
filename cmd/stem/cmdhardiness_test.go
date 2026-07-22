@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -463,8 +464,13 @@ func TestExecutableIntegrityUsesTheRecordedStemBinary(t *testing.T) {
 		t.Fatalf("mkdir bin: %v", err)
 	}
 	stemBinary := filepath.Join(bin, "tendril")
-	if err := os.WriteFile(stemBinary, []byte("#!/bin/true\n"), 0o777); err != nil {
+	if err := os.WriteFile(stemBinary, []byte("#!/bin/true\n"), 0o755); err != nil {
 		t.Fatalf("write binary: %v", err)
+	}
+	// Set the mode explicitly: WriteFile's permission argument is masked by the
+	// process umask, which differs between a developer machine and CI.
+	if err := os.Chmod(stemBinary, 0o777); err != nil {
+		t.Fatalf("chmod binary: %v", err)
 	}
 	if err := os.MkdirAll(tendrilDir, 0o755); err != nil {
 		t.Fatalf("mkdir control plane: %v", err)
@@ -524,5 +530,51 @@ func TestRecordedIdentityRoundTrips(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0o644 {
 		t.Errorf("mode = %v, want 0644 — the record must be readable from outside the control plane", info.Mode().Perm())
+	}
+}
+
+// An owner can always write its own file, so a binary belonging to another
+// principal is replaceable however narrow its mode.
+func TestExecutableOwnedByAnotherPrincipalIsWeak(t *testing.T) {
+	root := cleanTempRoot(t)
+	tendrilDir := filepath.Join(root, ".tendril")
+
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	stemBinary := filepath.Join(bin, "tendril")
+	if err := os.WriteFile(stemBinary, []byte("#!/bin/true\n"), 0o755); err != nil {
+		t.Fatalf("write binary: %v", err)
+	}
+	if err := os.Chmod(stemBinary, 0o755); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	if err := os.MkdirAll(tendrilDir, 0o755); err != nil {
+		t.Fatalf("mkdir control plane: %v", err)
+	}
+	// The record claims a Stem uid this test's files do not belong to.
+	foreign := os.Getuid() + 1
+	if err := os.WriteFile(filepath.Join(tendrilDir, stemIdentityFilename),
+		[]byte(fmt.Sprintf(`{"executable":%q,"uid":%d}`+"\n", stemBinary, foreign)), 0o644); err != nil {
+		t.Fatalf("write identity: %v", err)
+	}
+
+	finding := executableIntegrityFinding(tendrilDir)
+
+	if finding.Severity != "weak" {
+		t.Fatalf("severity = %q, want weak — the binary belongs to another principal", finding.Severity)
+	}
+	if !strings.Contains(finding.Detail, "not the Stem") {
+		t.Errorf("detail should name the foreign owner, got:\n%s", finding.Detail)
+	}
+}
+
+// With no recorded uid, only modes are judged — the previous behaviour.
+func TestOwnershipUnknownJudgesModesOnly(t *testing.T) {
+	_, executable := newExecutable(t)
+	finding := executableIntegrityFindingFor(executable)
+	if finding.Severity != "ok" {
+		t.Fatalf("severity = %q, want ok when ownership cannot be compared", finding.Severity)
 	}
 }

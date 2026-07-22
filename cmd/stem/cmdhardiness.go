@@ -316,7 +316,7 @@ const maxExecutableLinkHops = 40
 // that account's. The finding states which it answered.
 func executableIntegrityFinding(tendrilDir string) hardinessFinding {
 	if identity, ok := readStemIdentity(tendrilDir); ok {
-		finding := executableIntegrityFindingFor(identity.Executable)
+		finding := executableIntegrityFindingOwnedBy(identity.Executable, identity.UID)
 		finding.Title = "The Stem's binary: " + finding.Title
 		return finding
 	}
@@ -344,6 +344,14 @@ func executableIntegrityFinding(tendrilDir string) hardinessFinding {
 // executableIntegrityFindingFor is the measurement itself, separated from
 // os.Executable so it can be exercised against a constructed tree.
 func executableIntegrityFindingFor(executable string) hardinessFinding {
+	return executableIntegrityFindingOwnedBy(executable, -1)
+}
+
+// executableIntegrityFindingOwnedBy also reports paths owned by a principal
+// other than the Stem. An owner can always write its own file, so a binary
+// belonging to somebody else is replaceable however narrow its mode. A uid of
+// -1 means the Stem's own principal is unknown and only modes are judged.
+func executableIntegrityFindingOwnedBy(executable string, stemUID int) hardinessFinding {
 	inspected, unresolved := executableResolutionChain(executable)
 
 	exposures := []string{}
@@ -368,6 +376,9 @@ func executableIntegrityFindingFor(executable string) hardinessFinding {
 			noteUnreadable(path)
 		case exposure != "":
 			exposures = append(exposures, fmt.Sprintf("%s (%s)", path, exposure))
+		}
+		if owner, known := pathOwnerOtherThan(path, stemUID); known {
+			exposures = append(exposures, fmt.Sprintf("%s (owned by %s, not the Stem)", path, owner))
 		}
 	}
 
@@ -662,6 +673,28 @@ func enclosingRepository(path string) (repository string, determined bool) {
 		}
 		current = parent
 	}
+}
+
+// pathOwnerOtherThan reports an owner that is not the given uid, and whether
+// such an owner was established. A uid below zero means the comparison cannot be
+// made, so nothing is reported.
+func pathOwnerOtherThan(path string, uid int) (owner string, differs bool) {
+	if uid < 0 {
+		return "", false
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", false
+	}
+	actual, ok := fileOwnerUID(info)
+	if !ok || actual == uid {
+		return "", false
+	}
+	name := fmt.Sprintf("uid %d", actual)
+	if resolved, err := user.LookupId(fmt.Sprintf("%d", actual)); err == nil {
+		name = resolved.Username
+	}
+	return name, true
 }
 
 // inGroup reports whether the current user belongs to a named group.
