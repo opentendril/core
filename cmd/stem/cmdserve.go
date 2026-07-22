@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"errors"
 	"github.com/opentendril/opentendril/cmd/stem/internal/conductor"
 	"github.com/opentendril/opentendril/cmd/stem/internal/configurator"
 	"github.com/opentendril/opentendril/cmd/stem/internal/core"
@@ -26,6 +27,7 @@ import (
 	"github.com/opentendril/opentendril/cmd/stem/internal/security"
 	"github.com/opentendril/opentendril/cmd/stem/internal/session"
 	"github.com/opentendril/opentendril/cmd/stem/internal/telemetry"
+	"io/fs"
 )
 
 type ChatCompletionRequest struct {
@@ -84,6 +86,10 @@ func runServeCmd(ctx context.Context, args []string) {
 	// 1): an explicit key wins, otherwise a previously generated key is
 	// reused, otherwise a new one is generated and persisted so the
 	// zero-config CLI/dashboard flow keeps working without a fail-open gap.
+	if err := recordStemIdentity(tendrilDir); err != nil {
+		log.Printf("⚠️ Could not record this Stem's executable identity: %v", err)
+	}
+
 	apiKey, generatedKey, err := getOrCreateAPIKey(tendrilDir)
 	if err != nil {
 		log.Fatalf("⚠️ Failed to establish an API key: %v", err)
@@ -136,7 +142,9 @@ func runServeCmd(ctx context.Context, args []string) {
 
 	telemetryPath := filepath.Join(tendrilDir, "telemetry.yaml")
 	if cfg, err := telemetry.LoadConfig(telemetryPath); err != nil {
-		if !os.IsNotExist(err) {
+		// errors.Is rather than os.IsNotExist: the loader wraps, and
+		// os.IsNotExist does not unwrap, so an absent optional file warned.
+		if !errors.Is(err, fs.ErrNotExist) {
 			log.Printf("⚠️ Failed to load telemetry config: %v", err)
 		}
 	} else if cfg.Enabled {

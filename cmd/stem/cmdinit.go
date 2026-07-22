@@ -165,12 +165,16 @@ func runInitCmd(args []string) {
 	fmt.Println("  1. Start the Stem server:   tendril serve")
 	fmt.Println("  2. Chat in a new terminal:  tendril chat")
 	fmt.Println()
-	fmt.Println("  MCP Integration (Claude Code / Claude Desktop):")
-	fmt.Println("  Claude Code CLI:")
+	fmt.Println("  Model Context Protocol integration:")
 	fmt.Println("    claude mcp add opentendril -- tendril mcp")
 	fmt.Println("  Claude Desktop — add to claude_desktop_config.json")
 	fmt.Println("  (Mac: ~/Library/Application Support/Claude/, Linux: ~/.config/Claude/):")
 	fmt.Printf("    {\"mcpServers\": {\"opentendril\": {\"command\": \"%s\", \"args\": [\"mcp\"]}}}\n", homeBin)
+	fmt.Println()
+	fmt.Println("  ⚠️  That runs the Stem AS WHOEVER LAUNCHES IT, in their own directory.")
+	fmt.Println("      Correct for a single-user install. If you are running the Stem under")
+	fmt.Println("      its own principal, it bypasses that boundary — see docs/INSTALL.md")
+	fmt.Println("      for the surface a credential-bearing Pollinator uses instead.")
 	fmt.Println("════════════════════════════════════════")
 
 	go func() {
@@ -240,6 +244,17 @@ func maybeScaffoldSubstrates(scanner *bufio.Scanner) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		fmt.Printf("⚠️  Could not resolve current directory: %v\n", err)
+		return
+	}
+
+	// A path substrate is mounted into the Terrarium. Pointing one at the
+	// directory holding the control plane would mount grants, credentials and
+	// the issued-credential store into a Sprout — the one thing the trust model
+	// forbids. Refuse rather than write it.
+	if _, err := os.Stat(filepath.Join(cwd, ".tendril")); err == nil {
+		fmt.Println("⚠️  Not scaffolding: this directory holds the control plane (.tendril).")
+		fmt.Println("    A path substrate here would mount credentials and grants into a Sprout.")
+		fmt.Println("    Name a repository instead:  tendril git setup --substrate <name> --repo <owner/repo>")
 		return
 	}
 

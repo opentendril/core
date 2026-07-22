@@ -56,26 +56,46 @@ func runHardinessCmd(ctx context.Context, args []string) {
 	tendrilDir := "./.tendril"
 	findings := collectHardinessFindings(ctx, tendrilDir)
 
-	weak := 0
+	current, _ := user.Current()
+	who := "unknown"
+	if current != nil {
+		who = current.Username
+	}
+	fmt.Printf("Hardiness — measured as %s, from %s\n", who, mustGetwdOrDot())
+	fmt.Println(strings.Repeat("─", 72))
+
+	weak, notes := 0, 0
 	for _, finding := range findings {
-		icon := map[string]string{"ok": "✅", "note": "ℹ️ ", "weak": "⚠️ "}[finding.Severity]
-		fmt.Printf("%s %s\n", icon, finding.Title)
+		icon := map[string]string{"ok": "✅", "note": "ℹ️", "weak": "⚠️"}[finding.Severity]
+		fmt.Printf("\n%s  %s\n", icon, finding.Title)
 		if finding.Detail != "" {
 			for _, line := range strings.Split(finding.Detail, "\n") {
-				fmt.Printf("     %s\n", line)
+				fmt.Printf("      %s\n", line)
 			}
 		}
-		if finding.Severity == "weak" {
+		switch finding.Severity {
+		case "weak":
 			weak++
+		case "note":
+			notes++
 		}
 	}
 
 	fmt.Println()
+	fmt.Println(strings.Repeat("─", 72))
 	if weak == 0 {
-		fmt.Println("This Terroir is hardy: the delegation boundary is enforced by the operating system.")
+		if notes > 0 {
+			fmt.Printf("NO WEAK CONDITIONS — but %d note(s) above.\n\n", notes)
+			fmt.Println("Nothing measurable is wrong from this account. A note means something is")
+			fmt.Println("not configured yet or could not be established, so this is not the same")
+			fmt.Println("as a boundary proven sound. Re-run once the notes are resolved.")
+			return
+		}
+		fmt.Println("HARDY — no weak conditions and nothing unestablished. The delegation")
+		fmt.Println("boundary is enforced by the operating system, as measured from this account.")
 		return
 	}
-	fmt.Printf("%d condition(s) mean delegation here is ADVISORY, not enforced.\n", weak)
+	fmt.Printf("ADVISORY — %d weak condition(s), %d note(s).\n\n", weak, notes)
 	fmt.Println("A Pollinator running as this user can read what the Stem holds and act")
 	fmt.Println("outside the governed path. Grants and audit still record intent and catch")
 	fmt.Println("accidents — they do not constrain a caller that chooses otherwise.")
@@ -92,39 +112,17 @@ func collectHardinessFindings(ctx context.Context, tendrilDir string) []hardines
 		username = current.Username
 	}
 
-	// 1. Does the Stem have a principal of its own? Approximated by asking
-	//    whether the control-plane directory belongs to somebody else: if this
-	//    user owns it, this user can rewrite policy and read secrets.
-	ownsControlPlane, ownerName := pathOwnedByCurrentUser(tendrilDir)
-	if ownsControlPlane {
-		findings = append(findings, hardinessFinding{
-			Severity: "weak",
-			Title:    fmt.Sprintf("The Stem shares a principal with its callers (%s)", username),
-			Detail: "This user owns " + tendrilDir + ", so a Pollinator running as this user can\n" +
-				"rewrite grants.yaml, read issued credentials, and bypass the binary entirely.\n" +
-				"Run the Stem as its own operating-system user to make the boundary real.",
-		})
-	} else {
-		findings = append(findings, hardinessFinding{
-			Severity: "ok",
-			Title:    fmt.Sprintf("The Stem has its own principal (%s owns %s)", ownerName, tendrilDir),
-		})
-	}
+	// 1. Does the Stem have a principal of its own?
+	//
+	//    Owning the control plane means opposite things depending on who is
+	//    asking. Run BY the Stem it is the desired state; run by a caller it is
+	//    the alarm. The recorded identity distinguishes the two; without it, the
+	//    honest answer is conditional rather than a verdict.
+	findings = append(findings, controlPlanePrincipalFinding(tendrilDir, username))
 
 	// 2. Are the secrets readable by this user? This is the specific failure
 	//    that let the organism's own credential be borrowed.
-	readable := readableSecrets(tendrilDir)
-	if len(readable) > 0 {
-		findings = append(findings, hardinessFinding{
-			Severity: "weak",
-			Title:    fmt.Sprintf("%d credential file(s) are readable by this user", len(readable)),
-			Detail: "  " + strings.Join(readable, "\n  ") + "\n" +
-				"A Pollinator that can read a credential can use it directly, without asking\n" +
-				"the Stem and without appearing in the audit lane.",
-		})
-	} else {
-		findings = append(findings, hardinessFinding{Severity: "ok", Title: "No credential files are readable by this user"})
-	}
+	findings = append(findings, credentialExclusivityFinding(tendrilDir))
 
 	// 3. Escalation paths that defeat a separate principal before it starts.
 	//    File ownership is necessary and nowhere near sufficient: a caller that
@@ -135,7 +133,7 @@ func collectHardinessFindings(ctx context.Context, tendrilDir string) []hardines
 	// 4. Can somebody else rewrite what the Stem runs? Ownership of the
 	//    credentials is pointless if the binary that enforces the boundary can
 	//    be replaced by the accounts it is meant to constrain.
-	findings = append(findings, executableIntegrityFinding())
+	findings = append(findings, executableIntegrityFinding(tendrilDir))
 
 	// 5. Can somebody else rewrite the configuration that decides whether a
 	//    Sprout may escape its Terrarium onto the host?
@@ -225,6 +223,9 @@ func pathOwnedByCurrentUser(path string) (bool, string) {
 // opens rather than inspecting the mode, because that is the question that
 // matters — permissions can be satisfied through group membership.
 func readableSecrets(tendrilDir string) []string {
+	// Candidates are collected as written and de-duplicated by resolved path: a
+	// relative control plane and an absolute home reach the same file, and
+	// counting it twice overstates what is exposed.
 	candidates := []string{
 		filepath.Join(tendrilDir, core.PollinatorCredentialsFilename),
 		filepath.Join(tendrilDir, "api-key"),
@@ -238,10 +239,17 @@ func readableSecrets(tendrilDir string) []string {
 	seen := map[string]bool{}
 	readable := []string{}
 	for _, candidate := range candidates {
-		if seen[candidate] {
+		identity := candidate
+		if absolute, err := filepath.Abs(candidate); err == nil {
+			identity = absolute
+			if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+				identity = resolved
+			}
+		}
+		if seen[identity] {
 			continue
 		}
-		seen[candidate] = true
+		seen[identity] = true
 		file, err := os.Open(candidate)
 		if err != nil {
 			continue
@@ -314,7 +322,13 @@ const maxExecutableLinkHops = 40
 // executableIntegrityFinding measures the binary this process is running from.
 // Run as the Stem it names the Stem's binary; run as another account it names
 // that account's. The finding states which it answered.
-func executableIntegrityFinding() hardinessFinding {
+func executableIntegrityFinding(tendrilDir string) hardinessFinding {
+	if identity, ok := readStemIdentity(tendrilDir); ok {
+		finding := executableIntegrityFindingOwnedBy(identity.Executable, identity.UID)
+		finding.Title = "The Stem's binary: " + finding.Title
+		return finding
+	}
+
 	executable, err := os.Executable()
 	if err != nil {
 		return hardinessFinding{
@@ -325,12 +339,34 @@ func executableIntegrityFinding() hardinessFinding {
 				"has not been established.",
 		}
 	}
-	return executableIntegrityFindingFor(executable)
+	finding := executableIntegrityFindingFor(executable)
+	finding.Title = "This invocation's binary: " + finding.Title
+	if finding.Detail != "" {
+		finding.Detail += "\n"
+	}
+	finding.Detail += "This is the binary THIS invocation ran, not necessarily the Stem's: no\n" +
+		"identity record was readable at " + stemIdentityPath(tendrilDir) + ".\n" +
+		"Reported as a note rather than a weakness for that reason — what the Stem\n" +
+		"runs has not been established here. Run this as the Stem for the real answer."
+	// Without a record this cannot be the Stem's binary as far as the report
+	// knows, so it must not assert an exposure of the Stem's.
+	if finding.Severity == "weak" {
+		finding.Severity = "note"
+	}
+	return finding
 }
 
 // executableIntegrityFindingFor is the measurement itself, separated from
 // os.Executable so it can be exercised against a constructed tree.
 func executableIntegrityFindingFor(executable string) hardinessFinding {
+	return executableIntegrityFindingOwnedBy(executable, -1)
+}
+
+// executableIntegrityFindingOwnedBy also reports paths owned by a principal
+// other than the Stem. An owner can always write its own file, so a binary
+// belonging to somebody else is replaceable however narrow its mode. A uid of
+// -1 means the Stem's own principal is unknown and only modes are judged.
+func executableIntegrityFindingOwnedBy(executable string, stemUID int) hardinessFinding {
 	inspected, unresolved := executableResolutionChain(executable)
 
 	exposures := []string{}
@@ -356,6 +392,9 @@ func executableIntegrityFindingFor(executable string) hardinessFinding {
 		case exposure != "":
 			exposures = append(exposures, fmt.Sprintf("%s (%s)", path, exposure))
 		}
+		if owner, known := pathOwnerOtherThan(path, stemUID); known {
+			exposures = append(exposures, fmt.Sprintf("%s (owned by %s, not the Stem)", path, owner))
+		}
 	}
 
 	if len(exposures) > 0 {
@@ -369,7 +408,7 @@ func executableIntegrityFindingFor(executable string) hardinessFinding {
 		}
 		return hardinessFinding{
 			Severity: "weak",
-			Title:    fmt.Sprintf("%d path(s) on the running binary's resolution chain are writable by others", len(exposures)),
+			Title:    fmt.Sprintf("%d path(s) on its resolution chain are writable by others", len(exposures)),
 			Detail:   detail,
 		}
 	}
@@ -377,7 +416,7 @@ func executableIntegrityFindingFor(executable string) hardinessFinding {
 	if len(unreadable) > 0 {
 		return hardinessFinding{
 			Severity: "note",
-			Title:    "The running binary's resolution chain could not be fully examined",
+			Title:    "The resolution chain could not be fully examined",
 			Detail: "  " + strings.Join(unreadable, "\n  ") + "\n" +
 				"This is not a pass: these paths may or may not be writable by another\n" +
 				"account, and the difference has not been established.",
@@ -386,7 +425,7 @@ func executableIntegrityFindingFor(executable string) hardinessFinding {
 
 	return hardinessFinding{
 		Severity: "ok",
-		Title:    fmt.Sprintf("Nothing on the running binary's resolution chain is writable by others (%s)", executable),
+		Title:    fmt.Sprintf("Nothing on its resolution chain is writable by others (%s)", executable),
 	}
 }
 
@@ -597,6 +636,140 @@ func hostProviderDeclared() bool {
 	return false
 }
 
+// mustGetwdOrDot names the directory the report measured, since the control
+// plane is resolved against it.
+func mustGetwdOrDot() string {
+	if wd, err := os.Getwd(); err == nil {
+		return wd
+	}
+	return "."
+}
+
+// credentialExclusivityFinding reports credential material this account can
+// read, relative to whether this account is the Stem.
+//
+// The Stem must be able to read its own credentials; that is what they are for.
+// The same fact from an account that hosts Pollinators is the weakness. Reported
+// as one verdict it condemns a correct installation.
+func credentialExclusivityFinding(tendrilDir string) hardinessFinding {
+	readable := readableSecrets(tendrilDir)
+	if len(readable) == 0 {
+		return hardinessFinding{Severity: "ok", Title: "No credential files are readable by this account"}
+	}
+
+	// Owning a .tendril directory is not being the Stem. A control plane a Stem
+	// has actually started in carries an identity record; without one, readable
+	// credential material here is leftover rather than in use, which is exactly
+	// what a caller-side run exists to surface.
+	identity, recorded := readStemIdentity(tendrilDir)
+	isStem := recorded && identity.UID == os.Getuid()
+
+	// Material inside the measured control plane belongs to it. Material found
+	// elsewhere — a key left in an account's own home — belongs to nothing here,
+	// and is worth reporting however the rest resolves.
+	controlPlane, stray := partitionByPrefix(readable, tendrilDir)
+
+	if len(stray) > 0 {
+		detail := "  " + strings.Join(stray, "\n  ") + "\n" +
+			"These are outside the control plane being measured. A credential sitting in\n" +
+			"an account's home is readable by anything running as that account, whether\n" +
+			"or not this Ramet knows about it."
+		if len(controlPlane) > 0 && isStem {
+			detail += "\n(The Stem's own material in " + tendrilDir + " is expected and not counted here.)"
+		}
+		return hardinessFinding{
+			Severity: "weak",
+			Title:    fmt.Sprintf("%d credential file(s) readable outside the control plane", len(stray)),
+			Detail:   detail,
+		}
+	}
+
+	if isStem {
+		return hardinessFinding{
+			Severity: "ok",
+			Title:    fmt.Sprintf("%d credential file(s) readable — this is the Stem's own material", len(controlPlane)),
+			Detail: "  " + strings.Join(controlPlane, "\n  ") + "\n" +
+				"The Stem must be able to read these. Run this again from an account that\n" +
+				"hosts Pollinators: there, none of them may be readable.",
+		}
+	}
+
+	detail := "  " + strings.Join(readable, "\n  ") + "\n" +
+		"A Pollinator running as this account can use a credential directly — without\n" +
+		"asking the Stem, and without appearing in the audit lane.\n"
+	if !recorded {
+		detail += "No Stem has recorded itself in " + tendrilDir + ", so this is leftover\n" +
+			"material rather than a running Ramet's. Remove it, or start the Stem here if\n" +
+			"this account is meant to run one."
+	} else {
+		detail += "The Stem here runs as another principal, so this account should not be\n" +
+			"able to read its credentials at all."
+	}
+	return hardinessFinding{
+		Severity: "weak",
+		Title:    fmt.Sprintf("%d credential file(s) are readable by this account", len(readable)),
+		Detail:   detail,
+	}
+}
+
+// partitionByPrefix splits paths into those under a directory and those outside
+// it, comparing resolved absolute paths so a relative control plane matches.
+func partitionByPrefix(paths []string, dir string) (inside, outside []string) {
+	root, err := filepath.Abs(dir)
+	if err != nil {
+		return paths, nil
+	}
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
+	for _, path := range paths {
+		absolute, err := filepath.Abs(path)
+		if err != nil {
+			outside = append(outside, path)
+			continue
+		}
+		if resolved, err := filepath.EvalSymlinks(absolute); err == nil {
+			absolute = resolved
+		}
+		if absolute == root || strings.HasPrefix(absolute, root+string(filepath.Separator)) {
+			inside = append(inside, path)
+		} else {
+			outside = append(outside, path)
+		}
+	}
+	return inside, outside
+}
+
+// controlPlanePrincipalFinding reports who owns the control plane, relative to
+// whoever is asking.
+func controlPlanePrincipalFinding(tendrilDir, username string) hardinessFinding {
+	ownsControlPlane, ownerName := pathOwnedByCurrentUser(tendrilDir)
+	if !ownsControlPlane {
+		return hardinessFinding{
+			Severity: "ok",
+			Title:    fmt.Sprintf("The Stem has its own principal (%s owns %s)", ownerName, tendrilDir),
+		}
+	}
+
+	if identity, ok := readStemIdentity(tendrilDir); ok && identity.UID == os.Getuid() {
+		return hardinessFinding{
+			Severity: "ok",
+			Title:    fmt.Sprintf("Running as the Stem (%s), which owns %s", username, tendrilDir),
+			Detail: "Run this again from an account that hosts Pollinators to check the other\n" +
+				"side of the boundary: that account must NOT own this directory.",
+		}
+	}
+
+	return hardinessFinding{
+		Severity: "note",
+		Title:    fmt.Sprintf("This account (%s) owns %s", username, tendrilDir),
+		Detail: "Correct if this IS the Stem's account and Pollinators run elsewhere.\n" +
+			"A weakness if Pollinators run as this account: one could then rewrite\n" +
+			"grants.yaml, read issued credentials, and bypass the binary entirely.\n" +
+			"Start the Stem once and re-run to have this answered rather than guessed.",
+	}
+}
+
 // controlPlaneReachabilityFinding reports whether the control plane sits inside a
 // git working tree.
 //
@@ -649,6 +822,34 @@ func enclosingRepository(path string) (repository string, determined bool) {
 		}
 		current = parent
 	}
+}
+
+// pathOwnerOtherThan reports an owner that is not the given uid, and whether
+// such an owner was established. A uid below zero means the comparison cannot be
+// made, so nothing is reported.
+func pathOwnerOtherThan(path string, uid int) (owner string, differs bool) {
+	if uid < 0 {
+		return "", false
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", false
+	}
+	actual, ok := fileOwnerUID(info)
+	if !ok || actual == uid {
+		return "", false
+	}
+	// Root is out of scope by definition: it can write anything whatever the
+	// owner is, and every path eventually ascends into root-owned system
+	// directories. Reporting those would flag / and /home on every machine.
+	if actual == 0 {
+		return "", false
+	}
+	name := fmt.Sprintf("uid %d", actual)
+	if resolved, err := user.LookupId(fmt.Sprintf("%d", actual)); err == nil {
+		name = resolved.Username
+	}
+	return name, true
 }
 
 // inGroup reports whether the current user belongs to a named group.

@@ -242,9 +242,10 @@ make stem                      # builds cmd/stem/tendril with the project's flag
 ```
 
 ```bash
-# [root] hand it over; the Stem owns it, nobody else can write it
-install -d -o tendril -g tendril -m 755 /home/tendril/.local/bin
-install -o tendril -g tendril -m 755 cmd/stem/tendril /home/tendril/.local/bin/tendril
+# [root] hand it over. 0750 and not 0755: no account other than the Stem should
+#        run this binary, so no account other than the Stem is given the ability.
+install -d -o tendril -g tendril -m 750 /home/tendril/.local/bin
+install -o tendril -g tendril -m 750 cmd/stem/tendril /home/tendril/.local/bin/tendril
 rm cmd/stem/tendril
 ```
 
@@ -472,9 +473,12 @@ Restart=on-failure
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
-# ProtectHome hides /home, /root AND /run/user — where the rootless Docker
-# socket lives. Both paths must be exempted or the Stem cannot reach its daemon.
-ProtectHome=yes
+# ProtectHome= is deliberately absent. It empties /home inside the service's
+# namespace, and the Stem's binary, control plane and managed checkouts all live
+# there — systemd cannot even resolve ExecStart, failing with 203/EXEC.
+# ReadWritePaths does not rescue that lookup. Little is lost: the Stem runs as
+# its own unprivileged user, so ordinary permissions already keep it out of
+# other accounts' homes.
 ReadWritePaths=/home/tendril /run/user/1001
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
@@ -498,9 +502,18 @@ the Botanist. It is not what a Pollinator uses.
 
 **Check:** `curl -s localhost:8080/health` returns a health report.
 
-If the log shows the Stem cannot reach its daemon, the sandboxing directives are
-the first thing to relax — comment out `ProtectHome=` and restart to confirm that
-is the cause before chasing anything else.
+If the service fails at `203/EXEC` — *"Unable to locate executable"* — a
+sandboxing directive is hiding the path rather than the path being wrong. Check
+`ProtectHome=` is absent, then `ProtectSystem=`. Confirm the binary is reachable
+outside the unit first:
+
+```bash
+sudo -u tendril -i test -x /home/tendril/.local/bin/tendril && echo reachable
+```
+
+If it starts but cannot reach its container daemon, `ReadWritePaths` is the line
+to check: `/run/user/<uid>` must be listed, and `<uid>` must match `id -u tendril`
+in all three places it appears.
 
 ---
 
@@ -601,7 +614,14 @@ Better still, administer `tendril` from a session that does not host Pollinators
 ## Verify the installation
 
 Run the report from **both** sides. They answer different questions, and only
-together do they describe the boundary.
+together do they describe the boundary — so a finding that differs between them
+is expected, not a fault.
+
+| Finding | Authoritative side | Why |
+|---|---|---|
+| Credential exclusivity | **your account** | The question is "can *I* read these?", and only your account can answer it by trying |
+| Executable integrity | **the Stem** | A property of the Stem's binary; run as you it measures yours |
+| Principal, escalation, host configuration, control-plane reachability | **the Stem** | Properties of the Stem's own environment |
 
 ```bash
 # as tendril — the Stem's own view
@@ -642,12 +662,19 @@ $ tendril hardiness
 2 condition(s) mean delegation here is ADVISORY, not enforced.
 ```
 
-> [!NOTE]
-> **A known limit of the P5 check today.** It measures the binary *the invoking
-> process is running from*. Run as `tendril` it names the Stem's binary exactly;
-> run as your own account it names yours, which is a different and also useful
-> question. It cannot yet report on the Stem's binary from another account, so
-> the `tendril`-side run is the authoritative one for P5.
+> [!IMPORTANT]
+> **Run the report as the Stem for an authoritative P5 reading.** Executable
+> integrity is a property of the Stem's own binary; run from your account it
+> measures *your* binary, which is a different and less useful question. The two
+> runs answer different things and both are correct — see the note below on which
+> side is authoritative for which finding.
+>
+> The Stem records which binary it is running, in
+> `/home/tendril/.tendril/stem.json`. That is not for reading across accounts: it
+> is because `tendril hardiness` typed at a shell measures the binary *that
+> invocation* resolved, which need not be the one `ExecStart` names. With the
+> record readable the finding is titled *"The Stem's binary"*; without it, *"This
+> invocation's binary"*.
 
 ---
 

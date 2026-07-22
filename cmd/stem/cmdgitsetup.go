@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"bufio"
 	"github.com/opentendril/opentendril/cmd/stem/internal/conductor"
+	"os/user"
 )
 
 // `tendril git setup` — one command that stands up a git connection so neither
@@ -58,6 +60,11 @@ func runGitSetup(ctx context.Context, args []string) {
 			os.Exit(1)
 		}
 		return
+	}
+
+	if !confirmGitSetupTarget(opts) {
+		fmt.Fprintln(os.Stderr, "Nothing written.")
+		os.Exit(1)
 	}
 
 	substratesPath := filepath.Join(opts.dir, "substrates.yaml")
@@ -333,6 +340,66 @@ func runGitSetupVerify(o gitSetupOptions) bool {
 	return ready
 }
 
+// confirmGitSetupTarget shows where configuration will be written and who will
+// be able to read the credential it references, then asks.
+//
+// This command writes into the current directory, which is easy to get wrong:
+// run from the wrong checkout it configures a Ramet that was never meant to
+// exist, and a key path the running user cannot read produces a connection that
+// reports success and can never work.
+func confirmGitSetupTarget(opts gitSetupOptions) bool {
+	absolute, err := filepath.Abs(opts.dir)
+	if err != nil {
+		absolute = opts.dir
+	}
+
+	fmt.Println("About to write:")
+	fmt.Printf("  %s\n", filepath.Join(absolute, "substrates.yaml"))
+	if opts.grantPollen != "" {
+		fmt.Printf("  %s\n", filepath.Join(absolute, ".tendril", "grants.yaml"))
+	}
+	fmt.Printf("Connection %q → %s\n", opts.substrate, opts.repo)
+
+	if key := strings.TrimSpace(opts.keyPath); key != "" {
+		if file, err := os.Open(key); err == nil {
+			file.Close()
+		} else {
+			current := "this user"
+			if who, err := user.Current(); err == nil {
+				current = who.Username
+			}
+			fmt.Printf("\n⚠️  %s cannot read %s.\n", current, key)
+			fmt.Println("    The connection would be written but could never authenticate.")
+			fmt.Println("    Run this as the account that owns the key.")
+		}
+	}
+
+	if opts.force {
+		return true
+	}
+	if !isTerminal(os.Stdin) {
+		fmt.Fprintln(os.Stderr, "\n❌ Not a terminal, so the destination cannot be confirmed.")
+		fmt.Fprintln(os.Stderr, "   Re-run with --force to write without confirmation.")
+		return false
+	}
+
+	fmt.Print("\nProceed? (y/n): ")
+	reader := bufio.NewReader(os.Stdin)
+	answer, _ := reader.ReadString('\n')
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "y" || answer == "yes"
+}
+
+// isTerminal reports whether a file is an interactive terminal, so a scripted
+// invocation is never blocked on a prompt.
+func isTerminal(file *os.File) bool {
+	info, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
 func printGitSetupUsage() {
 	fmt.Println("Usage: tendril git setup --substrate <name> --repo <owner/repo> [flags]")
 	fmt.Println()
@@ -349,6 +416,6 @@ func printGitSetupUsage() {
 	fmt.Println("  posture pat:  --token-env <ENV>  --sign-key <gpg id>  --identity-name <n>  --identity-email <e>")
 	fmt.Println()
 	fmt.Println("  --dir <path>          Where to write config (default: current directory)")
-	fmt.Println("  --force               Overwrite existing config files")
+	fmt.Println("  --force               Overwrite existing config files, and skip the confirmation")
 	fmt.Println("  --verify              Check an existing connection's credentials (no commit is made)")
 }
