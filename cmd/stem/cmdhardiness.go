@@ -56,26 +56,39 @@ func runHardinessCmd(ctx context.Context, args []string) {
 	tendrilDir := "./.tendril"
 	findings := collectHardinessFindings(ctx, tendrilDir)
 
-	weak := 0
+	current, _ := user.Current()
+	who := "unknown"
+	if current != nil {
+		who = current.Username
+	}
+	fmt.Printf("Hardiness — measured as %s, from %s\n", who, mustGetwdOrDot())
+	fmt.Println(strings.Repeat("─", 72))
+
+	weak, notes := 0, 0
 	for _, finding := range findings {
-		icon := map[string]string{"ok": "✅", "note": "ℹ️ ", "weak": "⚠️ "}[finding.Severity]
-		fmt.Printf("%s %s\n", icon, finding.Title)
+		icon := map[string]string{"ok": "✅", "note": "ℹ️", "weak": "⚠️"}[finding.Severity]
+		fmt.Printf("\n%s  %s\n", icon, finding.Title)
 		if finding.Detail != "" {
 			for _, line := range strings.Split(finding.Detail, "\n") {
-				fmt.Printf("     %s\n", line)
+				fmt.Printf("      %s\n", line)
 			}
 		}
-		if finding.Severity == "weak" {
+		switch finding.Severity {
+		case "weak":
 			weak++
+		case "note":
+			notes++
 		}
 	}
 
 	fmt.Println()
+	fmt.Println(strings.Repeat("─", 72))
 	if weak == 0 {
-		fmt.Println("This Terroir is hardy: the delegation boundary is enforced by the operating system.")
+		fmt.Printf("HARDY — no weak conditions (%d note(s)). The delegation boundary is\n", notes)
+		fmt.Println("enforced by the operating system, as measured from this account.")
 		return
 	}
-	fmt.Printf("%d condition(s) mean delegation here is ADVISORY, not enforced.\n", weak)
+	fmt.Printf("ADVISORY — %d weak condition(s), %d note(s).\n\n", weak, notes)
 	fmt.Println("A Pollinator running as this user can read what the Stem holds and act")
 	fmt.Println("outside the governed path. Grants and audit still record intent and catch")
 	fmt.Println("accidents — they do not constrain a caller that chooses otherwise.")
@@ -92,24 +105,13 @@ func collectHardinessFindings(ctx context.Context, tendrilDir string) []hardines
 		username = current.Username
 	}
 
-	// 1. Does the Stem have a principal of its own? Approximated by asking
-	//    whether the control-plane directory belongs to somebody else: if this
-	//    user owns it, this user can rewrite policy and read secrets.
-	ownsControlPlane, ownerName := pathOwnedByCurrentUser(tendrilDir)
-	if ownsControlPlane {
-		findings = append(findings, hardinessFinding{
-			Severity: "weak",
-			Title:    fmt.Sprintf("The Stem shares a principal with its callers (%s)", username),
-			Detail: "This user owns " + tendrilDir + ", so a Pollinator running as this user can\n" +
-				"rewrite grants.yaml, read issued credentials, and bypass the binary entirely.\n" +
-				"Run the Stem as its own operating-system user to make the boundary real.",
-		})
-	} else {
-		findings = append(findings, hardinessFinding{
-			Severity: "ok",
-			Title:    fmt.Sprintf("The Stem has its own principal (%s owns %s)", ownerName, tendrilDir),
-		})
-	}
+	// 1. Does the Stem have a principal of its own?
+	//
+	//    Owning the control plane means opposite things depending on who is
+	//    asking. Run BY the Stem it is the desired state; run by a caller it is
+	//    the alarm. The recorded identity distinguishes the two; without it, the
+	//    honest answer is conditional rather than a verdict.
+	findings = append(findings, controlPlanePrincipalFinding(tendrilDir, username))
 
 	// 2. Are the secrets readable by this user? This is the specific failure
 	//    that let the organism's own credential be borrowed.
@@ -619,6 +621,45 @@ func hostProviderDeclared() bool {
 		}
 	}
 	return false
+}
+
+// mustGetwdOrDot names the directory the report measured, since the control
+// plane is resolved against it.
+func mustGetwdOrDot() string {
+	if wd, err := os.Getwd(); err == nil {
+		return wd
+	}
+	return "."
+}
+
+// controlPlanePrincipalFinding reports who owns the control plane, relative to
+// whoever is asking.
+func controlPlanePrincipalFinding(tendrilDir, username string) hardinessFinding {
+	ownsControlPlane, ownerName := pathOwnedByCurrentUser(tendrilDir)
+	if !ownsControlPlane {
+		return hardinessFinding{
+			Severity: "ok",
+			Title:    fmt.Sprintf("The Stem has its own principal (%s owns %s)", ownerName, tendrilDir),
+		}
+	}
+
+	if identity, ok := readStemIdentity(tendrilDir); ok && identity.UID == os.Getuid() {
+		return hardinessFinding{
+			Severity: "ok",
+			Title:    fmt.Sprintf("Running as the Stem (%s), which owns %s", username, tendrilDir),
+			Detail: "Run this again from an account that hosts Pollinators to check the other\n" +
+				"side of the boundary: that account must NOT own this directory.",
+		}
+	}
+
+	return hardinessFinding{
+		Severity: "note",
+		Title:    fmt.Sprintf("This account (%s) owns %s", username, tendrilDir),
+		Detail: "Correct if this IS the Stem's account and Pollinators run elsewhere.\n" +
+			"A weakness if Pollinators run as this account: one could then rewrite\n" +
+			"grants.yaml, read issued credentials, and bypass the binary entirely.\n" +
+			"Start the Stem once and re-run to have this answered rather than guessed.",
+	}
 }
 
 // controlPlaneReachabilityFinding reports whether the control plane sits inside a
