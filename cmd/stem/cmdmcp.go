@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/opentendril/opentendril/cmd/stem/internal/core"
+	"github.com/opentendril/opentendril/cmd/stem/internal/envvar"
 	"github.com/opentendril/opentendril/cmd/stem/internal/eventbus"
 	"github.com/opentendril/opentendril/cmd/stem/internal/historydb"
 	"github.com/opentendril/opentendril/cmd/stem/internal/receptors"
@@ -22,7 +22,10 @@ import (
 // authorized as that one Pollen against the active grants. Unset means no
 // pollen is bound and every delegated capability is denied over MCP
 // (deny-closed).
-const envPollen = "OPENTENDRIL_POLLEN"
+const envPollen = "TENDRIL_POLLEN"
+
+// envPollenSuperseded is the previous spelling, still honoured with a warning.
+const envPollenSuperseded = "OPENTENDRIL_POLLEN"
 
 func runMCPCmd(ctx context.Context, args []string) {
 	fmt.Fprintln(os.Stderr, "🚀 OpenTendril MCP Stdio Server initializing...")
@@ -114,7 +117,7 @@ func runMCPCmd(ctx context.Context, args []string) {
 
 	// The Pollen is bound once, at startup, as a property of this
 	// trusted stdio connection — a tool argument can never self-declare it.
-	pollen := strings.TrimSpace(os.Getenv(envPollen))
+	pollen := envvar.Lookup(envPollen, envPollenSuperseded)
 	if pollen != "" {
 		fmt.Fprintf(os.Stderr, "🔏 Pollen %q bound from %s: delegated capabilities are authorized against the loaded grants\n", pollen, envPollen)
 	} else {

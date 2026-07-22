@@ -25,16 +25,26 @@ import (
 
 	"github.com/opentendril/opentendril/cmd/stem/internal/eventbus"
 	"github.com/opentendril/opentendril/cmd/stem/internal/session"
+
+	"github.com/opentendril/opentendril/cmd/stem/internal/envvar"
 )
 
 const (
 	// EnvDBLogging toggles SQLite persistence. Defaults to enabled; set to
 	// "false" (or "0"/"off") to bypass the database entirely.
-	EnvDBLogging = "OPENTENDRIL_DB_LOGGING"
+	EnvDBLogging = "TENDRIL_DB_LOGGING"
+
+	// EnvDBLoggingSuperseded is the previous spelling, still honoured with a
+	// warning.
+	EnvDBLoggingSuperseded = "OPENTENDRIL_DB_LOGGING"
 
 	// EnvDBPath overrides the database location. Defaults to
 	// <repo-root>/.tendril/history.db.
-	EnvDBPath = "OPENTENDRIL_DB_PATH"
+	EnvDBPath = "TENDRIL_DB_PATH"
+
+	// EnvDBPathSuperseded is the previous spelling, still honoured with a
+	// warning.
+	EnvDBPathSuperseded = "OPENTENDRIL_DB_PATH"
 )
 
 // SproutRun is one Sprout execution history record.
@@ -73,7 +83,7 @@ type Store struct {
 
 // LoggingEnabled reports whether SQLite persistence is switched on.
 func LoggingEnabled() bool {
-	value := strings.ToLower(strings.TrimSpace(os.Getenv(EnvDBLogging)))
+	value := strings.ToLower(envvar.Lookup(EnvDBLogging, EnvDBLoggingSuperseded))
 	switch value {
 	case "false", "0", "off", "no", "disabled":
 		return false
@@ -98,7 +108,7 @@ func OpenFromEnv(ctx context.Context, root string) (*Store, error) {
 		return nil, nil
 	}
 
-	path := strings.TrimSpace(os.Getenv(EnvDBPath))
+	path := envvar.Lookup(EnvDBPath, EnvDBPathSuperseded)
 	if path == "" {
 		path = DefaultPath(root)
 	}

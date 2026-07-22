@@ -31,9 +31,9 @@ import (
 // run only when OPENTENDRIL_LIVE_APP_ID / OPENTENDRIL_LIVE_APP_KEY / OPENTENDRIL_LIVE_APP_REPO are set.
 // It never prints the token.
 func TestGithubAppLive(t *testing.T) {
-	appID := os.Getenv("OPENTENDRIL_LIVE_APP_ID")
-	keyPath := os.Getenv("OPENTENDRIL_LIVE_APP_KEY")
-	repo := os.Getenv("OPENTENDRIL_LIVE_APP_REPO")
+	appID := os.Getenv("TENDRIL_LIVE_APP_ID")
+	keyPath := os.Getenv("TENDRIL_LIVE_APP_KEY")
+	repo := os.Getenv("TENDRIL_LIVE_APP_REPO")
 	if appID == "" || keyPath == "" || repo == "" {
 		t.Skip("set OPENTENDRIL_LIVE_APP_ID / OPENTENDRIL_LIVE_APP_KEY / OPENTENDRIL_LIVE_APP_REPO to run the live GitHub App check")
 	}

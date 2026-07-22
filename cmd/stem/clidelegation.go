@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/opentendril/opentendril/cmd/stem/internal/core"
+	"github.com/opentendril/opentendril/cmd/stem/internal/envvar"
 	"github.com/opentendril/opentendril/cmd/stem/internal/eventbus"
 	"github.com/opentendril/opentendril/cmd/stem/internal/historydb"
 	"github.com/opentendril/opentendril/cmd/stem/internal/receptors"
@@ -28,7 +29,10 @@ import (
 // envPollenCLI is the same variable the Model Context Protocol surface binds
 // from. One name, so a Pollen means the same thing whichever surface a
 // Pollinator reaches through.
-const envPollenCLI = "OPENTENDRIL_POLLEN"
+const envPollenCLI = "TENDRIL_POLLEN"
+
+// envPollenCLISuperseded is the previous spelling, still honoured with a warning.
+const envPollenCLISuperseded = "OPENTENDRIL_POLLEN"
 
 // cliDelegation carries the gate for one command line invocation.
 type cliDelegation struct {
@@ -43,7 +47,7 @@ type cliDelegation struct {
 // newCLIDelegation prepares the gate. With no Pollen it returns a zero value
 // that authorises nothing and gates nothing — the Botanist's path, untouched.
 func newCLIDelegation(ctx context.Context) *cliDelegation {
-	pollen := strings.TrimSpace(os.Getenv(envPollenCLI))
+	pollen := envvar.Lookup(envPollenCLI, envPollenCLISuperseded)
 	if pollen == "" {
 		return &cliDelegation{}
 	}
