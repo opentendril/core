@@ -91,3 +91,4 @@ substrates.yaml
 # Private keys / secrets (e.g. GitHub App .pem) — never commit
 *.pem
 *.private-key.pem
+*.swp
