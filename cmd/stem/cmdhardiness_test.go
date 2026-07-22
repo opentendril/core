@@ -392,3 +392,61 @@ func TestHostExecutionGateStateDistinguishesUnsetFromFalse(t *testing.T) {
 		t.Error("an unknown gate must not report as open")
 	}
 }
+
+// Control-plane reachability. Trusted definitions are trusted because a Sprout
+// cannot write them; a control plane inside a repository can be written.
+
+func TestControlPlaneOutsideRepositoryIsOK(t *testing.T) {
+	root := cleanTempRoot(t)
+	finding := controlPlaneReachabilityFinding(filepath.Join(root, ".tendril"))
+	if finding.Severity != "ok" {
+		t.Fatalf("severity = %q, want ok (detail: %s)", finding.Severity, finding.Detail)
+	}
+}
+
+func TestControlPlaneInsideRepositoryIsWeak(t *testing.T) {
+	root := cleanTempRoot(t)
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatalf("create .git: %v", err)
+	}
+	controlPlane := filepath.Join(root, ".tendril")
+
+	finding := controlPlaneReachabilityFinding(controlPlane)
+
+	if finding.Severity != "weak" {
+		t.Fatalf("severity = %q, want weak", finding.Severity)
+	}
+	if !strings.Contains(finding.Detail, root) {
+		t.Errorf("detail should name the repository, got:\n%s", finding.Detail)
+	}
+}
+
+// A worktree's .git is a file, not a directory, and must count the same.
+func TestControlPlaneInsideWorktreeIsWeak(t *testing.T) {
+	root := cleanTempRoot(t)
+	if err := os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: /elsewhere\n"), 0o644); err != nil {
+		t.Fatalf("write .git file: %v", err)
+	}
+
+	finding := controlPlaneReachabilityFinding(filepath.Join(root, ".tendril"))
+	if finding.Severity != "weak" {
+		t.Fatalf("severity = %q, want weak for a worktree", finding.Severity)
+	}
+}
+
+// A repository several levels up still reaches the control plane.
+func TestControlPlaneInNestedDirectoryIsWeak(t *testing.T) {
+	root := cleanTempRoot(t)
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatalf("create .git: %v", err)
+	}
+	nested := filepath.Join(root, "a", "b", "c")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+
+	finding := controlPlaneReachabilityFinding(filepath.Join(nested, ".tendril"))
+	if finding.Severity != "weak" {
+		t.Fatalf("severity = %q, want weak for a nested control plane", finding.Severity)
+	}
+}
