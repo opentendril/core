@@ -141,7 +141,11 @@ func collectHardinessFindings(ctx context.Context, tendrilDir string) []hardines
 	//    Sprout may escape its Terrarium onto the host?
 	findings = append(findings, hostExecutionConfigFinding())
 
-	// 6. Can callers prove an identity, or must they declare one?
+	// 6. Is the control plane somewhere a Sprout can reach? Trusted definitions
+	//    stop being trusted when the Stem works inside a repository.
+	findings = append(findings, controlPlaneReachabilityFinding(tendrilDir))
+
+	// 7. Can callers prove an identity, or must they declare one?
 	credentials, credentialsErr := core.LoadPollinatorCredentials(tendrilDir)
 	switch {
 	case credentialsErr != nil:
@@ -182,7 +186,7 @@ func collectHardinessFindings(ctx context.Context, tendrilDir string) []hardines
 		})
 	}
 
-	// 7. Is anything granted at all? No grants is the secure default, and
+	// 8. Is anything granted at all? No grants is the secure default, and
 	//    saying so avoids an operator wondering why everything is denied.
 	grants, grantsErr := core.LoadDelegationGrants(tendrilDir)
 	switch {
@@ -591,6 +595,60 @@ func hostProviderDeclared() bool {
 		}
 	}
 	return false
+}
+
+// controlPlaneReachabilityFinding reports whether the control plane sits inside a
+// git working tree.
+//
+// Trusted definitions — genotypes, sequences — are trusted because they live
+// where a Sprout cannot write. A control plane inside a repository a Sprout
+// edits is reachable, so nothing there can be trusted and the tier collapses.
+func controlPlaneReachabilityFinding(tendrilDir string) hardinessFinding {
+	repository, determined := enclosingRepository(tendrilDir)
+	switch {
+	case !determined:
+		return hardinessFinding{
+			Severity: "note",
+			Title:    "Whether the control plane sits inside a repository could not be established",
+			Detail: "This is not a pass: if it does, a Sprout editing that repository can write\n" +
+				"the definitions the Stem treats as trusted.",
+		}
+	case repository != "":
+		return hardinessFinding{
+			Severity: "weak",
+			Title:    "The control plane is inside a git working tree",
+			Detail: "  " + repository + "\n" +
+				"A Sprout editing this repository can write the genotypes and sequences the\n" +
+				"Stem would otherwise trust, so none of them are treated as trusted. Run the\n" +
+				"Stem from a working directory that is not a checkout.",
+		}
+	}
+	return hardinessFinding{Severity: "ok", Title: "The control plane is outside any repository"}
+}
+
+// enclosingRepository returns the git working tree containing path, and whether
+// the question could be answered at all.
+func enclosingRepository(path string) (repository string, determined bool) {
+	current, err := filepath.Abs(path)
+	if err != nil {
+		return "", false
+	}
+	if resolved, err := filepath.EvalSymlinks(current); err == nil {
+		current = resolved
+	}
+
+	for {
+		if _, err := os.Lstat(filepath.Join(current, ".git")); err == nil {
+			return current, true
+		} else if !os.IsNotExist(err) {
+			return "", false
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", true
+		}
+		current = parent
+	}
 }
 
 // inGroup reports whether the current user belongs to a named group.
