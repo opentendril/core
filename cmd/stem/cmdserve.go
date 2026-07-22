@@ -84,6 +84,10 @@ func runServeCmd(ctx context.Context, args []string) {
 	// 1): an explicit key wins, otherwise a previously generated key is
 	// reused, otherwise a new one is generated and persisted so the
 	// zero-config CLI/dashboard flow keeps working without a fail-open gap.
+	if err := recordStemIdentity(tendrilDir); err != nil {
+		log.Printf("⚠️ Could not record this Stem's executable identity: %v", err)
+	}
+
 	apiKey, generatedKey, err := getOrCreateAPIKey(tendrilDir)
 	if err != nil {
 		log.Fatalf("⚠️ Failed to establish an API key: %v", err)

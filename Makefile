@@ -7,14 +7,27 @@ STEM_VERSION := 0.2.0
 STEM_DIR := cmd/stem
 DIST_DIR := cmd/stem/dist
 
-stem: ## Build Stem for current platform
-	cd $(STEM_DIR) && go build -ldflags="-s -w" -o tendril .
+stem: ## Build the tendril binary (does not install it)
+	@echo "🌱 Building the Stem for $$(go env GOOS)/$$(go env GOARCH)..."
+	@cd $(STEM_DIR) && go build -ldflags="-s -w" -o tendril .
+	@echo ""
+	@echo "✅ Built: $(STEM_DIR)/tendril"
+	@echo "   Nothing has been installed. Choose where it goes:"
+	@echo ""
+	@echo "   Governed install — hand it to the Stem's own user (see docs/INSTALL.md):"
+	@echo "     sudo install -o tendril -g tendril -m 755 $(STEM_DIR)/tendril /home/tendril/.local/bin/tendril"
+	@echo ""
+	@echo "   Single-user install — put it on your own PATH:"
+	@echo "     make install"
+	@echo ""
 
-install: stem ## Install tendril globally to ~/.local/bin
-	mkdir -p ~/.local/bin
-	mv $(STEM_DIR)/tendril ~/.local/bin/tendril
-	@echo "✅ Installed tendril to ~/.local/bin/tendril"
-	@echo "Make sure ~/.local/bin is in your PATH."
+install: stem ## Build, then install tendril to your own ~/.local/bin
+	@mkdir -p ~/.local/bin
+	@mv $(STEM_DIR)/tendril ~/.local/bin/tendril
+	@echo "✅ Installed: ~/.local/bin/tendril"
+	@echo "   This is a SINGLE-USER install — the Stem will run as you."
+	@echo "   Run 'tendril hardiness' to see what that means for the delegation boundary."
+	@echo "   Ensure ~/.local/bin is on your PATH."
 
 stem-all: ## Cross-compile Stem for linux and macOS
 	mkdir -p $(DIST_DIR)

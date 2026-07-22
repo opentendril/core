@@ -643,11 +643,12 @@ $ tendril hardiness
 ```
 
 > [!NOTE]
-> **A known limit of the P5 check today.** It measures the binary *the invoking
-> process is running from*. Run as `tendril` it names the Stem's binary exactly;
-> run as your own account it names yours, which is a different and also useful
-> question. It cannot yet report on the Stem's binary from another account, so
-> the `tendril`-side run is the authoritative one for P5.
+> **How P5 is answered from your account.** The Stem records which binary it is
+> running, in `/home/tendril/.tendril/stem.json` — a file carrying no secret,
+> readable while every credential beside it stays `0600`. When the report can
+> read it, the finding is titled *"The Stem's binary"*. When it cannot — a home
+> directory locked down to `700` prevents it — the finding is titled *"This
+> invocation's binary"* and says so, rather than implying it measured the Stem's.
 
 ---
 

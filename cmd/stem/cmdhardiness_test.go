@@ -450,3 +450,79 @@ func TestControlPlaneInNestedDirectoryIsWeak(t *testing.T) {
 		t.Fatalf("severity = %q, want weak for a nested control plane", finding.Severity)
 	}
 }
+
+// Cross-account executable integrity: the Stem records which binary it is, so an
+// account that runs a different one can still measure the right file.
+
+func TestExecutableIntegrityUsesTheRecordedStemBinary(t *testing.T) {
+	root := cleanTempRoot(t)
+	tendrilDir := filepath.Join(root, ".tendril")
+
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	stemBinary := filepath.Join(bin, "tendril")
+	if err := os.WriteFile(stemBinary, []byte("#!/bin/true\n"), 0o777); err != nil {
+		t.Fatalf("write binary: %v", err)
+	}
+	if err := os.MkdirAll(tendrilDir, 0o755); err != nil {
+		t.Fatalf("mkdir control plane: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tendrilDir, stemIdentityFilename),
+		[]byte(`{"executable":"`+stemBinary+`","uid":1001}`+"\n"), 0o644); err != nil {
+		t.Fatalf("write identity: %v", err)
+	}
+
+	finding := executableIntegrityFinding(tendrilDir)
+
+	if !strings.Contains(finding.Title, "The Stem's binary") {
+		t.Errorf("finding should say it measured the Stem's binary, got %q", finding.Title)
+	}
+	if finding.Severity != "weak" {
+		t.Fatalf("severity = %q, want weak — the recorded binary is world-writable", finding.Severity)
+	}
+	if !strings.Contains(finding.Detail, stemBinary) {
+		t.Errorf("detail should name the recorded binary, got:\n%s", finding.Detail)
+	}
+}
+
+// Without a readable record the finding still reports, and says what it measured.
+func TestExecutableIntegritySaysWhenItCouldNotReadTheRecord(t *testing.T) {
+	tendrilDir := filepath.Join(cleanTempRoot(t), ".tendril")
+
+	finding := executableIntegrityFinding(tendrilDir)
+
+	if strings.Contains(finding.Title, "The Stem's binary") {
+		t.Error("no record exists, so the finding must not claim to have measured the Stem's binary")
+	}
+	if !strings.Contains(finding.Detail, "not necessarily the Stem's") {
+		t.Errorf("detail should say which binary it measured, got:\n%s", finding.Detail)
+	}
+}
+
+func TestRecordedIdentityRoundTrips(t *testing.T) {
+	tendrilDir := filepath.Join(cleanTempRoot(t), ".tendril")
+	if err := recordStemIdentity(tendrilDir); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+
+	identity, ok := readStemIdentity(tendrilDir)
+	if !ok {
+		t.Fatal("the record just written was not readable")
+	}
+	if identity.Executable == "" {
+		t.Error("the record carries no executable path")
+	}
+	if identity.UID != os.Getuid() {
+		t.Errorf("uid = %d, want %d", identity.UID, os.Getuid())
+	}
+
+	info, err := os.Stat(stemIdentityPath(tendrilDir))
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if info.Mode().Perm() != 0o644 {
+		t.Errorf("mode = %v, want 0644 — the record must be readable from outside the control plane", info.Mode().Perm())
+	}
+}

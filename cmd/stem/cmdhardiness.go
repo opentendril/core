@@ -135,7 +135,7 @@ func collectHardinessFindings(ctx context.Context, tendrilDir string) []hardines
 	// 4. Can somebody else rewrite what the Stem runs? Ownership of the
 	//    credentials is pointless if the binary that enforces the boundary can
 	//    be replaced by the accounts it is meant to constrain.
-	findings = append(findings, executableIntegrityFinding())
+	findings = append(findings, executableIntegrityFinding(tendrilDir))
 
 	// 5. Can somebody else rewrite the configuration that decides whether a
 	//    Sprout may escape its Terrarium onto the host?
@@ -314,7 +314,13 @@ const maxExecutableLinkHops = 40
 // executableIntegrityFinding measures the binary this process is running from.
 // Run as the Stem it names the Stem's binary; run as another account it names
 // that account's. The finding states which it answered.
-func executableIntegrityFinding() hardinessFinding {
+func executableIntegrityFinding(tendrilDir string) hardinessFinding {
+	if identity, ok := readStemIdentity(tendrilDir); ok {
+		finding := executableIntegrityFindingFor(identity.Executable)
+		finding.Title = "The Stem's binary: " + finding.Title
+		return finding
+	}
+
 	executable, err := os.Executable()
 	if err != nil {
 		return hardinessFinding{
@@ -325,7 +331,14 @@ func executableIntegrityFinding() hardinessFinding {
 				"has not been established.",
 		}
 	}
-	return executableIntegrityFindingFor(executable)
+	finding := executableIntegrityFindingFor(executable)
+	finding.Title = "This invocation's binary: " + finding.Title
+	if finding.Detail != "" {
+		finding.Detail += "\n"
+	}
+	finding.Detail += "This is the binary THIS invocation ran, not necessarily the Stem's: no\n" +
+		"identity record was readable at " + stemIdentityPath(tendrilDir) + "."
+	return finding
 }
 
 // executableIntegrityFindingFor is the measurement itself, separated from
@@ -369,7 +382,7 @@ func executableIntegrityFindingFor(executable string) hardinessFinding {
 		}
 		return hardinessFinding{
 			Severity: "weak",
-			Title:    fmt.Sprintf("%d path(s) on the running binary's resolution chain are writable by others", len(exposures)),
+			Title:    fmt.Sprintf("%d path(s) on its resolution chain are writable by others", len(exposures)),
 			Detail:   detail,
 		}
 	}
@@ -377,7 +390,7 @@ func executableIntegrityFindingFor(executable string) hardinessFinding {
 	if len(unreadable) > 0 {
 		return hardinessFinding{
 			Severity: "note",
-			Title:    "The running binary's resolution chain could not be fully examined",
+			Title:    "The resolution chain could not be fully examined",
 			Detail: "  " + strings.Join(unreadable, "\n  ") + "\n" +
 				"This is not a pass: these paths may or may not be writable by another\n" +
 				"account, and the difference has not been established.",
@@ -386,7 +399,7 @@ func executableIntegrityFindingFor(executable string) hardinessFinding {
 
 	return hardinessFinding{
 		Severity: "ok",
-		Title:    fmt.Sprintf("Nothing on the running binary's resolution chain is writable by others (%s)", executable),
+		Title:    fmt.Sprintf("Nothing on its resolution chain is writable by others (%s)", executable),
 	}
 }
 
