@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/opentendril/opentendril/cmd/stem/internal/envvar"
 )
 
 // checkoutPlan is the resolved destination for a foreign substrate clone.
@@ -50,7 +48,7 @@ func resolveCheckoutPlan(name string, checkout CheckoutSpec) (checkoutPlan, erro
 // managedCheckoutRoot is the Tendril-owned base for managed checkouts — deliberately
 // separate from any human-editable clone. Overridable via env for tests/ops.
 func managedCheckoutRoot() string {
-	if v := envvar.Lookup("TENDRIL_MANAGED_CHECKOUT_ROOT", "OPENTENDRIL_MANAGED_CHECKOUT_ROOT"); v != "" {
+	if v := strings.TrimSpace(os.Getenv("TENDRIL_MANAGED_CHECKOUT_ROOT")); v != "" {
 		return v
 	}
 	if home, err := os.UserHomeDir(); err == nil && home != "" {

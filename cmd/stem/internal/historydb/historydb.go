@@ -5,7 +5,7 @@
 // It is the durable backbone of the Tendril OS: Tendril sessions, unified chat
 // logs, all EventBus telemetry, and Sprout execution histories are written
 // here so the future UI never loses state on a browser refresh. Setting
-// OPENTENDRIL_DB_LOGGING=false bypasses SQLite entirely for high-performance
+// TENDRIL_DB_LOGGING=false bypasses SQLite entirely for high-performance
 // headless runs.
 package historydb
 
@@ -25,8 +25,6 @@ import (
 
 	"github.com/opentendril/opentendril/cmd/stem/internal/eventbus"
 	"github.com/opentendril/opentendril/cmd/stem/internal/session"
-
-	"github.com/opentendril/opentendril/cmd/stem/internal/envvar"
 )
 
 const (
@@ -34,17 +32,9 @@ const (
 	// "false" (or "0"/"off") to bypass the database entirely.
 	EnvDBLogging = "TENDRIL_DB_LOGGING"
 
-	// EnvDBLoggingSuperseded is the previous spelling, still honoured with a
-	// warning.
-	EnvDBLoggingSuperseded = "OPENTENDRIL_DB_LOGGING"
-
 	// EnvDBPath overrides the database location. Defaults to
 	// <repo-root>/.tendril/history.db.
 	EnvDBPath = "TENDRIL_DB_PATH"
-
-	// EnvDBPathSuperseded is the previous spelling, still honoured with a
-	// warning.
-	EnvDBPathSuperseded = "OPENTENDRIL_DB_PATH"
 )
 
 // SproutRun is one Sprout execution history record.
@@ -83,7 +73,7 @@ type Store struct {
 
 // LoggingEnabled reports whether SQLite persistence is switched on.
 func LoggingEnabled() bool {
-	value := strings.ToLower(envvar.Lookup(EnvDBLogging, EnvDBLoggingSuperseded))
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(EnvDBLogging)))
 	switch value {
 	case "false", "0", "off", "no", "disabled":
 		return false
@@ -101,14 +91,14 @@ func DefaultPath(root string) string {
 }
 
 // OpenFromEnv opens the history database honoring the environment toggles.
-// It returns (nil, nil) when OPENTENDRIL_DB_LOGGING=false so callers can run
+// It returns (nil, nil) when TENDRIL_DB_LOGGING=false so callers can run
 // fully headless without touching disk.
 func OpenFromEnv(ctx context.Context, root string) (*Store, error) {
 	if !LoggingEnabled() {
 		return nil, nil
 	}
 
-	path := envvar.Lookup(EnvDBPath, EnvDBPathSuperseded)
+	path := strings.TrimSpace(os.Getenv(EnvDBPath))
 	if path == "" {
 		path = DefaultPath(root)
 	}

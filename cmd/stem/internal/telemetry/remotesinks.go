@@ -14,7 +14,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/opentendril/opentendril/cmd/stem/internal/eventbus"
 
-	"github.com/opentendril/opentendril/cmd/stem/internal/envvar"
+	"os"
 )
 
 const (
@@ -23,10 +23,6 @@ const (
 	//   TENDRIL_REMOTE_SINKS=redis://:pass@localhost:6379/opentendril-events,wss://fleet.example.com/ingest
 	// Supported schemes: redis://, ws://, wss://, http://, https:// (webhook).
 	EnvRemoteSinks = "TENDRIL_REMOTE_SINKS"
-
-	// EnvRemoteSinksSuperseded is the previous spelling, still honoured with a
-	// warning.
-	EnvRemoteSinksSuperseded = "OPENTENDRIL_REMOTE_SINKS"
 
 	defaultRedisChannel = "opentendril-events"
 	remoteDialTimeout   = 5 * time.Second
@@ -186,11 +182,11 @@ func (t *RemoteWebSocketTransporter) Emit(event eventbus.Event) error {
 	return nil
 }
 
-// TransportersFromEnv builds transporters from OPENTENDRIL_REMOTE_SINKS.
+// TransportersFromEnv builds transporters from TENDRIL_REMOTE_SINKS.
 // Malformed entries are returned as errors alongside the valid transporters
 // so one bad sink never disables the rest.
 func TransportersFromEnv() ([]Transporter, []error) {
-	raw := envvar.Lookup(EnvRemoteSinks, EnvRemoteSinksSuperseded)
+	raw := strings.TrimSpace(os.Getenv(EnvRemoteSinks))
 	if raw == "" {
 		return nil, nil
 	}

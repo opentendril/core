@@ -10,8 +10,6 @@ import (
 	"unicode"
 
 	"gopkg.in/yaml.v3"
-
-	"github.com/opentendril/opentendril/cmd/stem/internal/envvar"
 )
 
 // SubstratesConfig defines named substrate mappings loaded from YAML.
@@ -214,11 +212,7 @@ func resolveSubstrateExecutionPlan(d *DockerOrchestrator, config *SubstratesConf
 		cloneBranch: strings.TrimSpace(d.SubstrateBranch),
 	}
 	if plan.hostPath == "" {
-		if substrate := envvar.Lookup("TENDRIL_SUBSTRATE", "OPENTENDRIL_SUBSTRATE"); substrate != "" {
-			plan.hostPath = substrate
-		} else {
-			plan.hostPath = mustGetwd()
-		}
+		plan.hostPath = getEnvOrDefault("TENDRIL_SUBSTRATE", mustGetwd())
 	}
 
 	if spec, isName := ResolveSubstrate(plan.name, config); isName && spec != nil {

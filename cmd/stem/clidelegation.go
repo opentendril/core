@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/opentendril/opentendril/cmd/stem/internal/core"
-	"github.com/opentendril/opentendril/cmd/stem/internal/envvar"
 	"github.com/opentendril/opentendril/cmd/stem/internal/eventbus"
 	"github.com/opentendril/opentendril/cmd/stem/internal/historydb"
 	"github.com/opentendril/opentendril/cmd/stem/internal/receptors"
@@ -16,7 +15,7 @@ import (
 
 // The command line as a governed surface.
 //
-// When OPENTENDRIL_POLLEN is set, an invocation is treated as delegated: the
+// When TENDRIL_POLLEN is set, an invocation is treated as delegated: the
 // operation-class is authorised against the grants, the decision is audited, and
 // the work runs in that Pollen's isolated workspace. Unset, nothing is gated.
 //
@@ -31,9 +30,6 @@ import (
 // Pollinator reaches through.
 const envPollenCLI = "TENDRIL_POLLEN"
 
-// envPollenCLISuperseded is the previous spelling, still honoured with a warning.
-const envPollenCLISuperseded = "OPENTENDRIL_POLLEN"
-
 // cliDelegation carries the gate for one command line invocation.
 type cliDelegation struct {
 	// Pollen is the declared identity, or "" when this is a plain Botanist
@@ -47,7 +43,7 @@ type cliDelegation struct {
 // newCLIDelegation prepares the gate. With no Pollen it returns a zero value
 // that authorises nothing and gates nothing — the Botanist's path, untouched.
 func newCLIDelegation(ctx context.Context) *cliDelegation {
-	pollen := envvar.Lookup(envPollenCLI, envPollenCLISuperseded)
+	pollen := strings.TrimSpace(os.Getenv(envPollenCLI))
 	if pollen == "" {
 		return &cliDelegation{}
 	}
