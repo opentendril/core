@@ -60,21 +60,45 @@ Because the Python Sprout is running directly on your machine instead of inside 
 
 ---
 
-## Trust Boundary: Why Workspace Config Cannot Escalate to Host
+## Trust Boundary: What Actually Gates Host Execution
 
-A key architectural principle is that **workspace-resident Sprouts cannot grant themselves host execution privileges**, even if they can write to `.tendril/` files in the workspace.
+Host execution is gated by **one** control, and it is worth being exact about
+which, because a wrong belief here is more dangerous than no belief.
 
-The Stem enforces this with a two-layer gate:
+**The runtime environment gate.** The Stem refuses to start a host Terrarium
+unless `TENDRIL_ALLOW_HOST_EXECUTION=true` is present in its own runtime
+environment. Configuration alone can never enable host execution; the decision
+has to be made by an operator, outside any file a Sprout can reach.
 
-1. **Field stripping at parse time:** When `substrates.yaml` is loaded from a workspace path (`./.tendril/substrates.yaml` or `./substrates.yaml`), the Stem's `resolveSubstrateExecutionPlan` function strips the `provider` and `command` fields before they reach the Terrarium factory. Any `provider: host` declared in a workspace config silently falls back to `provider: docker`.
+What decides *which* substrates run that way is ordinary configuration. So the
+question that matters is **who can write that configuration** — never where it
+sits. A path confers no privilege by being in one directory rather than another.
 
-2. **System Config path required:** For `provider: host` to be honoured, the `substrates.yaml` must be loaded from a **System Config path** (`~/.opentendril/substrates.yaml` or `/etc/opentendril/substrates.yaml`). These directories are **never mounted** into any Terrarium container, making them physically inaccessible to any Sprout.
+Two properties make the answer safe on a sound installation:
 
-3. **Runtime environment gate:** Even if both conditions above are met, the Stem refuses to start a host Terrarium unless `TENDRIL_ALLOW_HOST_EXECUTION=true` is present in the Stem's runtime environment — a decision that must be made by a human operator.
+* The Stem resolves `substrates.yaml` relative to **its own working directory**,
+  not to the workspace a Sprout is editing. A Sprout works in a managed checkout;
+  the Stem reads its own control plane. The two are different directories.
+* That control plane belongs to the Stem's own principal, so no account hosting
+  a Pollinator can write it — which is exactly what
+  [INSTALL.md](./INSTALL.md) means by requiring that the Stem's working
+  directory is not a repository checkout.
 
-This means the attack chain `a Sprout writes substrates.yaml → poisons provider: host → escalates to host execution` is blocked at every layer.
+`tendril hardiness` measures this. It reports when substrate configuration is
+writable by another principal, and escalates that to a weak finding when host
+execution is also indicated:
 
----
+```console
+⚠️  Substrate configuration is writable by others AND host execution is enabled
+```
+
+> [!NOTE]
+> Earlier revisions of this document described two further layers — `provider`
+> and `command` stripped at parse time for workspace configurations, and a
+> privileged system-configuration directory for substrates. **Neither was ever
+> implemented.** They are removed rather than built: trust here comes from which
+> principal owns a file, and adding a second privileged directory would add
+> surface without adding a property.
 
 ## Relationship to a governed installation
 

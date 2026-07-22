@@ -49,13 +49,19 @@ OpenTendril is designed under a Zero-Trust architecture. We assume that the code
 
 OpenTendril's host execution capability introduces a specific threat: an autonomous Sprout operating inside a workspace Terrarium could potentially modify `.tendril/substrates.yaml` to inject `provider: host`, causing its next Sequence run to execute arbitrary commands directly on the host machine — completely bypassing Docker isolation.
 
-This is defended by the **config-origin trust model**, enforced in the Stem's Substrate resolver:
+This is defended by two properties. Neither is a rule about where a configuration file sits — trust here derives from **which principal owns a file**, and a path confers no privilege by being in one directory rather than another.
 
-* **Workspace Config paths** (`./.tendril/substrates.yaml`, `./substrates.yaml`): The `provider` and `command` fields are **stripped at parse time**. A Sprout inside the Terrarium can write these files, but the values will never reach the Terrarium factory.
-* **System Config paths** (`~/.opentendril/substrates.yaml`, `/etc/opentendril/substrates.yaml`): These directories are **never mounted into any Terrarium container**. Only a human operator with filesystem access to the host can define host execution substrates here.
-* **Runtime environment gate:** Even with a valid System Config path, host execution is blocked unless `TENDRIL_ALLOW_HOST_EXECUTION=true` is set in the Stem process environment.
+* **Runtime environment gate:** host execution is refused unless `TENDRIL_ALLOW_HOST_EXECUTION=true` is set in the Stem's own process environment. Configuration alone can never enable it; the decision is made by an operator, outside any file a Sprout can reach.
+* **Configuration ownership:** the Stem resolves `substrates.yaml` relative to **its own working directory**, not to the workspace a Sprout is editing. A Sprout works in a managed checkout; the Stem reads its own control plane, which belongs to the Stem's principal. On a deployment where the Stem runs as its own user, no account hosting a Pollinator can write the file that would declare `provider: host`.
 
-The same principle applies to **Genotypes**: System Genotypes shipped in the System Config path carry an immutable `deny` list of blocked Plasmids (tools). A Sprout cannot grant itself additional tool access by modifying its own Genotype, because System Genotypes are never resident in the workspace.
+`tendril hardiness` measures the second property and reports when it does not hold — a weak finding when the configuration is writable by another principal and host execution is also indicated.
+
+> [!IMPORTANT]
+> Earlier revisions of this document described a **config-origin trust model**: `provider` and `command` stripped at parse time for workspace configurations, and a privileged system-configuration directory for substrates. **Neither was implemented.** Both claims have been removed rather than built, and the properties above are what actually holds. If you relied on the removed description when assessing this project, please re-assess against this section.
+
+**Genotypes work differently, and the difference is deliberate.** A Genotype loaded from a system configuration directory — the user configuration directory's `opentendril/genotypes/`, or `/etc/opentendril/genotypes/` — is marked as a System Genotype and carries an immutable `deny` list of blocked Plasmids (tools). A Sprout cannot grant itself additional tool access by editing its own Genotype, because a workspace-resident Genotype is never a System Genotype.
+
+That *is* location-derived trust, unlike substrate configuration above, and it is implemented. The distinction is worth holding: these are two mechanisms with two different trust models, and conflating them is how the removed substrate claims came to be believed.
 
 See the full System Genotype RFC.
 
