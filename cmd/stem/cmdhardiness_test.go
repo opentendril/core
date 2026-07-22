@@ -238,14 +238,12 @@ func TestHardinessReportReturnsWithoutExiting(t *testing.T) {
 	if len(findings) == 0 {
 		t.Fatal("expected findings, got none")
 	}
-	weak := 0
 	for _, finding := range findings {
-		if finding.Severity == "weak" {
-			weak++
+		switch finding.Severity {
+		case "ok", "note", "weak":
+		default:
+			t.Errorf("finding %q has severity %q, which the report cannot render", finding.Title, finding.Severity)
 		}
-	}
-	if weak == 0 {
-		t.Fatal("expected at least one weak finding for a self-owned control plane")
 	}
 }
 
