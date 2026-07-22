@@ -615,7 +615,7 @@ func RunGitPush(ctx context.Context, execution GitPushExecution) (GitPushResult,
 // Three rules:
 //
 //  1. The base branch is READ from the repository when the caller does not name
-//     one. A default branch is never assumed to be "main".
+//     one. A default-branch name is never assumed.
 //  2. A head branch that IS the default branch is refused outright, before
 //     anything is created. There is deliberately no override flag.
 //  3. An existing open pull request for the same head branch is returned
