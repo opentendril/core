@@ -473,9 +473,12 @@ Restart=on-failure
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
-# ProtectHome hides /home, /root AND /run/user — where the rootless Docker
-# socket lives. Both paths must be exempted or the Stem cannot reach its daemon.
-ProtectHome=yes
+# ProtectHome= is deliberately absent. It empties /home inside the service's
+# namespace, and the Stem's binary, control plane and managed checkouts all live
+# there — systemd cannot even resolve ExecStart, failing with 203/EXEC.
+# ReadWritePaths does not rescue that lookup. Little is lost: the Stem runs as
+# its own unprivileged user, so ordinary permissions already keep it out of
+# other accounts' homes.
 ReadWritePaths=/home/tendril /run/user/1001
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
@@ -499,9 +502,18 @@ the Botanist. It is not what a Pollinator uses.
 
 **Check:** `curl -s localhost:8080/health` returns a health report.
 
-If the log shows the Stem cannot reach its daemon, the sandboxing directives are
-the first thing to relax — comment out `ProtectHome=` and restart to confirm that
-is the cause before chasing anything else.
+If the service fails at `203/EXEC` — *"Unable to locate executable"* — a
+sandboxing directive is hiding the path rather than the path being wrong. Check
+`ProtectHome=` is absent, then `ProtectSystem=`. Confirm the binary is reachable
+outside the unit first:
+
+```bash
+sudo -u tendril -i test -x /home/tendril/.local/bin/tendril && echo reachable
+```
+
+If it starts but cannot reach its container daemon, `ReadWritePaths` is the line
+to check: `/run/user/<uid>` must be listed, and `<uid>` must match `id -u tendril`
+in all three places it appears.
 
 ---
 
