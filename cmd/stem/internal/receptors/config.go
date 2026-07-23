@@ -35,8 +35,13 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// refused rather than interpreted. This path exposes no delegable
 		// operation-class, so there is nothing a Pollen could legitimately ask
 		// for — whether it arrives as a header claim, a credential, or a token.
-		if pollen, _ := DelegatedPollen(r, nil, nil); pollen != "" || core.LooksLikePollinatorCredential(bearerToken(r)) || core.LooksLikeAccessToken(bearerToken(r)) {
-			log.Printf("🚫 Delegation denied for Pollen %q: %s exposes no delegable operation-class", pollen, r.URL.Path)
+		presented := bearerToken(r)
+		if pollen, _ := DelegatedPollen(r, nil, nil); pollen != "" || core.LooksLikePollinatorCredential(presented) || core.LooksLikeAccessToken(presented) {
+			if core.LooksLikeAccessToken(presented) {
+				log.Printf("🚫 Access token denied: %s exposes no delegable operation-class", r.URL.Path)
+			} else {
+				log.Printf("🚫 Delegation denied for Pollen %q: %s exposes no delegable operation-class", pollen, r.URL.Path)
+			}
 			http.Error(w, "delegation denied: this endpoint exposes no delegable operation-class", http.StatusForbidden)
 			return
 		}

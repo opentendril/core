@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/opentendril/opentendril/cmd/stem/internal/core"
 )
@@ -31,13 +33,7 @@ func mintFixture(t *testing.T) (*core.StemSigner, PollinatorCredentials, string)
 
 func mint(t *testing.T, h *PollinatorTokenHandler, bearer, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	var reader *strings.Reader
-	if body == "" {
-		reader = strings.NewReader("")
-	} else {
-		reader = strings.NewReader(body)
-	}
-	req := httptest.NewRequest(http.MethodPost, "/v1/pollinator/token", reader)
+	req := httptest.NewRequest(http.MethodPost, "/v1/pollinator/token", strings.NewReader(body))
 	if bearer != "" {
 		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
@@ -56,6 +52,12 @@ func TestMintFromValidRootReturnsAVerifiableToken(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 (%s)", rec.Code, rec.Body.String())
 	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", got)
+	}
+	if got := rec.Header().Get("Pragma"); got != "no-cache" {
+		t.Fatalf("Pragma = %q, want no-cache", got)
+	}
 	var resp struct {
 		Token  string `json:"token"`
 		Pollen string `json:"pollen"`
@@ -72,6 +74,45 @@ func TestMintFromValidRootReturnsAVerifiableToken(t *testing.T) {
 	claims, ok := signer.VerifyAccessToken(resp.Token)
 	if !ok || claims.Pollen != "claude" {
 		t.Fatalf("minted token did not verify to claude (ok=%v, pollen=%q)", ok, claims.Pollen)
+	}
+}
+
+// TestMintHonoursShorterTTL: a custom under-cap ttl is signed into the token.
+func TestMintHonoursShorterTTL(t *testing.T) {
+	signer, credentials, secret := mintFixture(t)
+	h := NewPollinatorTokenHandler(signer, credentials)
+
+	before := time.Now().UTC()
+	rec := mint(t, h, secret, `{"ttlSeconds":60}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (%s)", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Token     string    `json:"token"`
+		ExpiresAt time.Time `json:"expiresAt"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	claims, ok := signer.VerifyAccessToken(resp.Token)
+	if !ok {
+		t.Fatal("minted token did not verify")
+	}
+	// Expiry should land near issued+60s, not the 15-minute default.
+	want := before.Add(60 * time.Second)
+	if claims.ExpiresAt.Before(want.Add(-2*time.Second)) || claims.ExpiresAt.After(want.Add(5*time.Second)) {
+		t.Fatalf("expiresAt = %s, want ~%s (± a few seconds)", claims.ExpiresAt, want)
+	}
+}
+
+// TestMintRejectsNegativeTTL: a negative ttl is a client error, not the default.
+func TestMintRejectsNegativeTTL(t *testing.T) {
+	signer, credentials, secret := mintFixture(t)
+	h := NewPollinatorTokenHandler(signer, credentials)
+
+	rec := mint(t, h, secret, `{"ttlSeconds":-300}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("negative ttl: status = %d, want 400 (%s)", rec.Code, rec.Body.String())
 	}
 }
 
@@ -134,9 +175,12 @@ func TestMintRejectsTTLOverCap(t *testing.T) {
 	h := NewPollinatorTokenHandler(signer, credentials)
 
 	over := int(core.MaxAccessTokenTTL.Seconds()) + 60
-	rec := mint(t, h, secret, `{"ttlSeconds":`+itoa(over)+`}`)
+	rec := mint(t, h, secret, `{"ttlSeconds":`+strconv.Itoa(over)+`}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("over-cap ttl: status = %d, want 400 (%s)", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "exceeds the maximum") {
+		t.Fatalf("over-cap body = %q, want a stable maximum-ttl message", rec.Body.String())
 	}
 }
 
@@ -185,16 +229,34 @@ func TestPollenForResolvesAndDeniesTokens(t *testing.T) {
 	}
 }
 
-// itoa is a tiny local integer formatter to keep the test's JSON literal simple
-// without pulling strconv into the assertions.
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
+// TestAuthMiddlewareRejectsAccessToken: config routes expose no delegable
+// operation-class, so a token-shaped bearer is refused even when shaped validly.
+func TestAuthMiddlewareRejectsAccessToken(t *testing.T) {
+	// Clear any host ADMIN_TOKEN so we exercise the delegation-shape guard,
+	// not the Botanist-key comparison.
+	t.Setenv("ADMIN_TOKEN", "")
+
+	signer, _, _ := mintFixture(t)
+	token, err := signer.MintAccessToken("claude", 0, core.AccessTokenScope{})
+	if err != nil {
+		t.Fatalf("mint: %v", err)
 	}
-	digits := ""
-	for n > 0 {
-		digits = string(rune('0'+n%10)) + digits
-		n /= 10
+
+	reached := false
+	handler := AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/config/genotypes", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	if reached {
+		t.Fatal("an access token reached a config route with no delegable operation-class")
 	}
-	return digits
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
 }

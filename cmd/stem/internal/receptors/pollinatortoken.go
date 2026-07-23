@@ -2,7 +2,9 @@ package receptors
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -25,7 +27,9 @@ func NewPollinatorTokenHandler(signer *core.StemSigner, credentials PollinatorCr
 }
 
 // mintTokenRequest is the optional body: a shorter lifetime may be requested,
-// never a longer one. Zero or omitted takes the default.
+// never a longer one. Zero or omitted takes the default. Negative is refused.
+// Scope narrowing is deferred; the minted token currently carries an empty
+// scope (full grant for its Pollen).
 type mintTokenRequest struct {
 	TTLSeconds int `json:"ttlSeconds"`
 }
@@ -70,28 +74,46 @@ func (h *PollinatorTokenHandler) HandleMint(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
+	// Negative is a client error, not a request for the default: MintAccessToken
+	// treats <=0 as "use default", which would quietly upgrade a buggy caller.
+	if body.TTLSeconds < 0 {
+		http.Error(w, "ttlSeconds must not be negative", http.StatusBadRequest)
+		return
+	}
 
 	token, err := h.Signer.MintAccessToken(pollen, time.Duration(body.TTLSeconds)*time.Second, core.AccessTokenScope{})
 	if err != nil {
-		// The only mint failures are policy ones (ttl over the cap, empty Pollen),
-		// which are the caller's request, not a server fault.
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		// Policy refusals (over-cap) get a stable client message that names the
+		// known limit; unexpected failures are generic. Never surface raw
+		// internal error strings on the wire.
+		log.Printf("access-token mint refused for Pollen %q: %v", pollen, err)
+		if body.TTLSeconds > 0 && time.Duration(body.TTLSeconds)*time.Second > core.MaxAccessTokenTTL {
+			http.Error(w, fmt.Sprintf("requested ttl exceeds the maximum of %s", core.MaxAccessTokenTTL), http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "access token could not be minted for the requested parameters", http.StatusBadRequest)
 		return
 	}
 	// Read the authoritative expiry back off the signed token rather than
 	// recomputing it, so the response cannot drift from what was signed.
 	claims, _ := h.Signer.VerifyAccessToken(token)
 
+	// Bearer tokens must never be cached by intermediaries (RFC 6749 §5.1).
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(mintTokenResponse{
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	log.Printf("access token minted for Pollen %q (expires %s)", claims.Pollen, claims.ExpiresAt.Format(time.RFC3339))
+	if err := json.NewEncoder(w).Encode(mintTokenResponse{
 		Token:     token,
 		Pollen:    claims.Pollen,
 		ExpiresAt: claims.ExpiresAt,
-	})
+	}); err != nil {
+		log.Printf("failed to write access-token mint response: %v", err)
+	}
 }
 
 // Register mounts the mint route. It is self-authenticating (the root credential
 // is the auth), so it takes no outer bearer wrapper.
 func (h *PollinatorTokenHandler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("/v1/pollinator/token", h.HandleMint)
+	mux.HandleFunc("POST /v1/pollinator/token", h.HandleMint)
 }
