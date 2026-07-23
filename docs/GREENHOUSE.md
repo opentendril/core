@@ -1,12 +1,12 @@
-# Tendril OS — Visual Command Center
+# Tendril OS — Greenhouse
 
-The **Command Center** is the operator-facing frontend of Tendril OS
-(the Operating System of OpenTendril). Where [ARCHITECTURE.md §5](../ARCHITECTURE.md)
-describes the persistent, multi-session Go Stem *daemon* (the unified
-`SessionManager`, the `.tendril/history.db` state layer, and the pluggable
-EventBus), this document describes the **decoupled web client** that turns that
-daemon into a single, living dashboard — and the Stem-side API contracts the
-client depends on.
+The **Greenhouse** (the Command Center UI) is the operator-facing frontend of
+Tendril OS (the Operating System of OpenTendril). Where
+[ARCHITECTURE.md §5](../ARCHITECTURE.md) describes the persistent, multi-session
+Go Stem *daemon* (the unified `SessionManager`, the `.tendril/history.db` state
+layer, and the pluggable EventBus), this document describes the **decoupled web
+client** that turns that daemon into a single, living dashboard — and the
+Stem-side API contracts the client depends on.
 
 - **Where it lives:** [`ui/`](../ui/) (React 18 + Vite + TypeScript).
 - **How to run / build it, the component tree, and the full event → visual
@@ -23,7 +23,7 @@ client depends on.
 ```
    Operator's browser
          │
-         │  Command Center (ui/, static React app)
+         │  Greenhouse (ui/, static React app)
          │    · REST: hydrate cold state on load / reconnect
          │    · WebSocket /ws: live EventBus feed
          ▼
@@ -49,7 +49,7 @@ It leans on three Phase 1 backend capabilities:
 
 ---
 
-## 2. REST surface consumed by the Command Center
+## 2. REST surface consumed by the Greenhouse
 
 All endpoints are served by the Go Stem on its API port (default `:8080`) and
 authenticated with the Botanist bearer key. `BOTANIST_KEY` sets it explicitly; if
@@ -83,7 +83,7 @@ The `…/events` and `…/sprout-runs` endpoints return `501 Not Implemented` wh
 `/ws` requires the same bearer key as the REST surface. Native
 WebSocket clients (e.g. the CLI's gorilla/websocket dialer) send it as an
 `Authorization: Bearer <key>` header on the upgrade request; browsers cannot
-attach custom headers to a WebSocket handshake, so the Command Center instead
+attach custom headers to a WebSocket handshake, so the Greenhouse instead
 appends it as a `?key=` query parameter (`ui/src/lib/api.ts#websocketUrl`).
 Gating is applied identically on both the main API mux (`:8080`) and the
 dedicated gateway listener (`:9090`).
@@ -127,7 +127,7 @@ runner, parallel-sprouting, and phenotypic-selection is **session-less** (it is
 keyed by sequence/step, not session), so a client that refreshes mid-sequence
 cannot recover that timeline from REST alone. `?replay=N` lets a reconnecting
 client re-grow session-less sequence state from the bus's recent history. The
-Command Center requests `replay=100` on every connect.
+Greenhouse requests `replay=100` on every connect.
 
 Replay is lossy by design — it only reaches back as far as the bus's 100-event
 in-memory window — and is a best-effort supplement to REST hydration, not a
@@ -135,7 +135,7 @@ guaranteed-complete event log. The durable log remains `history.db`.
 
 ---
 
-## 4. Stem changes made for the Command Center
+## 4. Stem changes made for the Greenhouse
 
 The following backend changes shipped alongside the UI. All are **additive and
 backward-compatible** — existing CLI, MCP, and Stem-Grafting behavior is
@@ -152,7 +152,7 @@ unchanged.
 
 ## 5. Deployment — the containerized UI front
 
-The Command Center ships as a **separate, optional, isolated, containerized
+The Greenhouse ships as a **separate, optional, isolated, containerized
 component**: a hardened nginx container (built by
 [`ui/Dockerfile`](../ui/Dockerfile), configured by
 [`ui/nginx/default.conf.template`](../ui/nginx/default.conf.template)) that
