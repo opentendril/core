@@ -42,6 +42,28 @@ We enforce strict language-based casing boundaries to prevent mixed patterns in 
 
 ---
 
+## Documentation layout & naming
+
+One rule: **root holds only what the platform or tooling requires by name;
+GitHub community-health files live in `.github/`; everything else lives in `docs/`.**
+
+**Naming.** Markdown docs use `UPPERCASE-KEBAB-CASE.md`, grouped by kind:
+- `DESIGN-*` — architecture and design-decision docs.
+- `GUIDE-*` — operator/user how-tos (install, setup, integration).
+- Unprefixed — short canonical references (`GLOSSARY`, `SYNTHETIC-TAXONOMY`,
+  `ARCHITECTURE`, `CAPABILITIES`, `ROADMAP`, `GREENHOUSE`).
+
+Taxonomy binds doc names: use the organism term where one exists
+(**`GREENHOUSE`**, never `COMMAND-CENTER`).
+
+**Fixed-name files — never rename or prefix (platform/tooling matches them by
+exact name):** `README.md`, `LICENSE`, `CHANGELOG.md`, `AGENTS.md` in root;
+`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` in `.github/`.
+`AGENTS.md` is the single canonical agent-instruction file — do not add per-tool
+instruction docs (`CODEX.md`, `CLAUDE.md`, …); fold tool guidance into `AGENTS.md`.
+
+---
+
 ## 🔒 Kernel Write Protection
 
 OpenTendril builds itself, so a Sprout can be asked to change the orchestrator that is currently running it. Some of those files decide what every later run is permitted to do: the governed capability registry, the continuous integration that enforces these rules, the governance documents, the guard itself. A change to one of them must reach a human before it lands.

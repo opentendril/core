@@ -2,7 +2,7 @@
 
 ## Principle
 
-The **Tendril OS** (Command Center) is the optional, potentially multi-user,
+The **Tendril OS** (Greenhouse) is the optional, potentially multi-user,
 network-facing surface, so it must be the **thinnest trusted layer**. It
 **delegates and proxies; it does not accumulate** authority or long-lived secrets.
 "Less attack surface" is a design rule to enforce, not an aspiration — this
@@ -21,9 +21,9 @@ bearer key (`BOTANIST_KEY`, or the auto-generated `.tendril/api-key`), the mesh
 is the only zone that can mint mesh grafting tokens, grow Terrariums, or make LLM
 provider calls. Every other zone reaches capability only by asking the Stem.
 
-### 2. Tendril OS / Command Center (optional, network-facing) — delegated authority
+### 2. Tendril OS / Greenhouse (optional, network-facing) — delegated authority
 
-An opt-in, containerised reverse proxy + static SPA (see `docs/COMMAND-CENTER.md`).
+An opt-in, containerised reverse proxy + static SPA (see `docs/GREENHOUSE.md`).
 It holds **no secrets of its own** — the proxy adds no credentials and bypasses
 nothing (`ui/nginx/default.conf.template`). The only credential in play is the
 operator's bearer key, entered once during onboarding and stored in the browser's
@@ -109,7 +109,7 @@ Pollinator REST access is **two-tier**:
 tokens age out within the cap. Tokens are not individually revocable.
 
 **Botanist key** (`BOTANIST_KEY`, or the generated `.tendril/api-key`) remains the
-Stem's own unscoped bearer for operator/CLI/Command Center use. It is not a
+Stem's own unscoped bearer for operator/CLI/Greenhouse use. It is not a
 Pollinator credential and is not exchanged for access tokens.
 
 ### Bind posture (self-declaring exposure)
@@ -133,6 +133,6 @@ same gate.
 - `cmd/stem/internal/terrarium/docker.go` + `provider_test.go` — worker isolation
   flags and their regression tests.
 - `cmd/stem/parity_test.go` — CLI/REST/MCP capability parity enforcement.
-- `docs/COMMAND-CENTER.md` — Tendril OS deployment and auth contract.
+- `docs/GREENHOUSE.md` — Tendril OS deployment and auth contract.
 - `docs/DESIGN-STEM-GRAFTING.md` — mesh token model; the one place delegated,
   short-lived tokens already exist today.

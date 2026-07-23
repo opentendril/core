@@ -132,7 +132,7 @@ aider --openai-api-base http://localhost:8080/v1 --model openai/tendril
 
 ### 3. The Greenhouse (Command Center UI)
 
-The **Command Center** is a desktop-grade web dashboard for watching every
+The **Greenhouse** is a desktop-grade web dashboard for watching every
 Sprout the Stem is growing in real time — the visual frontend of the **Tendril
 OS**. It is a strictly decoupled React client that talks to the Stem only over
 the documented REST + WebSocket surface, and renders live orchestration as a
@@ -159,7 +159,7 @@ Operators enter their Stem address and API key in an onboarding screen (no
 `.env` editing). See [`ui/README.md`](ui/README.md) for running it, the
 component tree, the refresh-resilient hydration flow, and the full
 EventBus-event → botanical-visual mapping; and
-[docs/COMMAND-CENTER.md](docs/COMMAND-CENTER.md) for how it fits the Tendril OS
+[docs/GREENHOUSE.md](docs/GREENHOUSE.md) for how it fits the Tendril OS
 architecture and the REST/WebSocket contract it consumes.
 
 ---
@@ -185,7 +185,7 @@ make install          # Build + install tendril binary to ~/.local/bin
 make test-stem        # Run Go unit tests
 make test-all         # Run all tests
 
-cd ui && npm install  # Install Command Center UI deps
+cd ui && npm install  # Install Greenhouse UI deps
 npm run dev           # Run the UI dev server (proxies to the Stem)
 npm run build         # Type-check + build the static UI bundle to ui/dist/
 ```

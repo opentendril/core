@@ -1,14 +1,14 @@
-# OpenTendril Command Center (`ui/`)
+# OpenTendril Greenhouse (`ui/`)
 
-The **Command Center** is the visual operator UI for the Tendril OS — a
-single, desktop-grade dashboard an operator leaves open all day to watch every
-Tendril the Go Stem is growing. It replaces the fragmented "one CLI terminal
-per run" workflow with one living view where live orchestration activity is
-legible at a glance and nothing is lost on refresh.
+The **Greenhouse** (the Command Center UI) is the visual operator UI for the
+Tendril OS — a single, desktop-grade dashboard an operator leaves open all day
+to watch every Tendril the Go Stem is growing. It replaces the fragmented "one
+CLI terminal per run" workflow with one living view where live orchestration
+activity is legible at a glance and nothing is lost on refresh.
 
 It is a **strictly decoupled client.** It talks to the Stem only over the
 documented REST + WebSocket surface (see
-[`docs/COMMAND-CENTER.md`](../docs/COMMAND-CENTER.md) for the full contract) and
+[`docs/GREENHOUSE.md`](../docs/GREENHOUSE.md) for the full contract) and
 has zero coupling to Go internals.
 
 ---
