@@ -47,7 +47,7 @@ Because the protocol executors are fully decoupled leaf programs without Go expo
 ```
 
 **Standard Tool Set:**
-The executors generally implement a shared set of tools: `readFile`, `writeFile`, `listFiles`, `gitCommit`, `gitDiff`, `execCommand`, and `listAvailableTools`. Wait, wait, let me check python actually. (I will note the static per-language tool sets in the limitations section, as Python might diverge).
+The `sprouts/go/main.go` executor implements a base set of tools: `readFile`, `writeFile`, `listFiles`, `gitCommit`, `gitDiff`, `execCommand`, and `listAvailableTools`. This base set is not uniform across executors — `sprouts/python/src/main.py` additionally implements a Python-specific `runPytest` tool. Callers can enumerate an executor's actual tools at runtime via `listAvailableTools`; the per-language divergence is called out under Limitations.
 
 ## Dependencies
 
@@ -58,7 +58,7 @@ The executors generally implement a shared set of tools: `readFile`, `writeFile`
 
 *   `sprouts/typescript/src/main.ts` and `sprouts/node/src/main.ts` are byte-identical source files, indicating unnecessary duplication between the node and typescript executors.
 *   `sprouts/go-verifier/Dockerfile` and `sprouts/go-fuzz/Dockerfile` are named as "sprouts" and placed in the `sprouts/` directory, but they are toolchain images that do not implement the tool protocol at all, causing a category confusion.
-*   The tool sets are static per-language. While `listAvailableTools` allows dynamic discovery, keeping the tools synchronized across four different language implementations invites protocol drift.
+*   The tool sets are static and implemented independently per language, and they already diverge: `sprouts/python/src/main.py` exposes a `runPytest` tool that `sprouts/go/main.go` does not. While `listAvailableTools` allows dynamic discovery, keeping the tools and their JSON contracts synchronized across four separate implementations invites further drift.
 
 ## Design & rationale
 
