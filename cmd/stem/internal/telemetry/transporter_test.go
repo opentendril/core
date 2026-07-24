@@ -87,7 +87,7 @@ func TestRedactingTransporter(t *testing.T) {
 
 func TestPrometheusNotWrapped(t *testing.T) {
 	cfg := TransporterConfig{
-		Type: "prometheus",
+		Type:     "prometheus",
 		Endpoint: "127.0.0.1:0", // let OS pick available port
 	}
 	transporter, err := NewTransporter(cfg)
