@@ -41,6 +41,6 @@
 
 ## Design & rationale
 
-The component strictly implements the Hormonal-Trigger "a blocked run never grows" model. By intercepting execution at `cmd/stem`, it ensures that policy enforcement is an insurmountable gate. Triggers are implemented as standalone executable scripts rather than in-memory functions, allowing operators to write policies in any language by placing an executable file in the configured directory.
+The component strictly implements the Hormonal-Trigger "a blocked run never grows" model. By intercepting execution at `cmd/stem`, it ensures that policy enforcement is an insurmountable gate. Triggers are implemented as standalone executable scripts rather than in-memory functions: operators author POSIX-`sh` policy scripts (the interpreter available in the isolated `alpine:3.20` Terrarium) and place them, executable, in the configured directory.
 
 (Note: a separate `DESIGN-SECURITY-POSTURE.md` already exists as an architecture doc — this new doc is the component doc for the package; keep them distinct.)
