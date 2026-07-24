@@ -15,6 +15,7 @@
 - Pre-register every known `eventbus.EventType` at zero so dashboards see a stable series set from the first scrape.
 - Parse `.tendril/telemetry.yaml` into `Config` and normalize Resin/Amber defaults (`config.go`).
 - Build remote transporters from the `TENDRIL_REMOTE_SINKS` environment variable, returning malformed entries as errors alongside the valid ones (`remotesinks.go`).
+- Redact payloads: off-box transporters minimize payloads (shipping only structural fields `Type`, `Timestamp`, `Source`, `SessionID`, dropping `Data`) by default; the on-disk Resin log is secret-pattern-scrubbed. These defaults can be overridden via a global env `TENDRIL_TELEMETRY_REDACTION=off/false`, or a per-sink `raw: true` in `telemetry.yaml`.
 
 **Does not:**
 
@@ -22,7 +23,6 @@
 - Guarantee delivery. Sink attachment is lossy by design (a full sink buffer drops the event for that sink only); transporter emit failures are counted and log-sampled, never retried durably.
 - Buffer or spool remote sinks to disk — Resin is the only persistent record.
 - Carry an external Kafka/Redis client dependency: every transporter is stdlib-only except the WebSocket path, which reuses `gorilla/websocket`.
-- Redact or filter payloads — whatever a producer puts in an event is what Resin writes and what remote transporters ship.
 
 ## Public interface
 
@@ -62,8 +62,8 @@
 - **Delivery is best-effort and lossy.** Sink buffers drop events when full; there is no ack, retry queue, or disk spool for remote transporters. Under bus pressure or a stalled remote, exported telemetry is incomplete by construction. Resin (synchronous handler) is the only path that does not silently drop, but it too swallows write errors.
 - **Transporter maturity varies.** Resin and Prometheus are production-grade and directly tested (event counting, all-types pre-registration, LLM token/character counting, sprouts-active gauge, config validation, loopback bind). Webhook, Redis (raw RESP), and remote WebSocket are functional but thinner. **Kafka is a first slice**: it supports only a Kafka REST Proxy endpoint — a brokers-only config is rejected loudly rather than silently dropping telemetry, and native broker wire protocol is explicitly deferred.
 - **Config validation is shallow.** `LoadConfig` normalizes Resin/Amber defaults but does not validate transporter entries; a bad `Type`, missing `Endpoint`, or unbindable Prometheus port surfaces only later at `NewTransporter`/attach time, where `cmdserve.go` logs and continues. There is no schema check that a transporter block is coherent before serve.
-- **PII / sensitive data flows through unfiltered.** Resin writes the full event JSON to disk, and every attached transporter ships the same payload off-box. `EventStreamToken` events carry raw LLM output token chunks; anything a producer places in `event.Data` (prompts, paths, session IDs) is persisted and exported verbatim. There is no redaction layer. API keys for transporters live in `telemetry.yaml` / `TENDRIL_REMOTE_SINKS` in cleartext.
-- **Prometheus bind posture is loopback-by-default (noted).** With `Port` set and no `Endpoint`, `NewPrometheusTransporter` binds `127.0.0.1:<port>` so enabling telemetry never silently exposes operational data on all interfaces — asserted by `TestPrometheusTransporterPortBindsLoopback`. A non-loopback bind is possible only when an operator sets `Endpoint` verbatim (e.g. `0.0.0.0:9091`), an explicit opt-out. The `/metrics` endpoint itself is unauthenticated, so a non-loopback `Endpoint` exposes metrics with no access control.
+- **Resin redaction is best-effort and API keys remain in cleartext.** Off-box payloads are minimized and the Resin log is scrubbed by default, but the on-disk Resin scrub is a best-effort deny-list heuristic. API keys for transporters still live in `telemetry.yaml` / `TENDRIL_REMOTE_SINKS` in cleartext.
+- **Prometheus bind posture is loopback-by-default (noted).** With `Port` set and no `Endpoint`, `NewPrometheusTransporter` binds `127.0.0.1:<port>` so enabling telemetry never silently exposes operational data on all interfaces — asserted by `TestPrometheusTransporterPortBindsLoopback`. A non-loopback bind is possible only when an operator sets `Endpoint` verbatim (e.g. `0.0.0.0:9091`), an explicit opt-out. Off-host binds require authentication (Bearer token via `api_key`, validated in constant-time) and fail closed if exposed without a key.
 - **Metrics are process-lifetime, in-memory only.** Counters reset on restart and the active-sprout gauge is clamped at zero (a matured/withered event for a sprout that emerged before the transporter attached cannot underflow, but is also uncounted).
 - **Amber hardening can only bound, not guarantee.** Compression and prune errors are swallowed; the worst case is an oversized active `resin.log`, and a rotation only truncates after a fully written archive so events are never lost to a failed compression.
 
