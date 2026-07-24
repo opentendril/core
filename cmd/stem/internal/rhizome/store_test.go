@@ -287,3 +287,77 @@ func openTestStore(t *testing.T, ctx context.Context, dbPath string) *SQLiteInde
 	}
 	return store
 }
+
+func TestOpenMemoryBackend_Gate(t *testing.T) {
+	ctx := context.Background()
+	encryptor, err := NewEncryptor([]byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		t.Fatalf("NewEncryptor returned error: %v", err)
+	}
+
+	// pinecone without ack
+	config := MemoryConfig{Backend: "pinecone", RemoteCleartextAck: false}
+	backend, err := OpenMemoryBackend(ctx, config, encryptor)
+	if err == nil {
+		t.Fatalf("expected error for pinecone without ack")
+	}
+	if !strings.Contains(err.Error(), "acknowledge") {
+		t.Fatalf("expected error to mention acknowledge, got: %v", err)
+	}
+	if backend != nil {
+		t.Fatalf("expected nil backend")
+	}
+
+	// weaviate without ack
+	config = MemoryConfig{Backend: "weaviate", RemoteCleartextAck: false}
+	backend, err = OpenMemoryBackend(ctx, config, encryptor)
+	if err == nil {
+		t.Fatalf("expected error for weaviate without ack")
+	}
+	if !strings.Contains(err.Error(), "acknowledge") {
+		t.Fatalf("expected error to mention acknowledge, got: %v", err)
+	}
+	if backend != nil {
+		t.Fatalf("expected nil backend")
+	}
+
+	// pinecone with ack, no base url -> pinecone's own error
+	config = MemoryConfig{Backend: "pinecone", RemoteCleartextAck: true}
+	_, err = OpenMemoryBackend(ctx, config, encryptor)
+	if err == nil {
+		t.Fatalf("expected pinecone config error")
+	}
+	if !strings.Contains(err.Error(), "TENDRIL_PINECONE_BASE_URL") {
+		t.Fatalf("expected error from Pinecone constructor, got: %v", err)
+	}
+
+	// weaviate with ack, no base url -> weaviate's own error
+	config = MemoryConfig{Backend: "weaviate", RemoteCleartextAck: true}
+	_, err = OpenMemoryBackend(ctx, config, encryptor)
+	if err == nil {
+		t.Fatalf("expected weaviate config error")
+	}
+	if !strings.Contains(err.Error(), "TENDRIL_WEAVIATE_BASE_URL") {
+		t.Fatalf("expected error from Weaviate constructor, got: %v", err)
+	}
+}
+
+func TestLoadMemoryConfig_RemoteAck(t *testing.T) {
+	t.Setenv("TENDRIL_MEMORY_REMOTE_CLEARTEXT_ACK", "true")
+	config, err := LoadMemoryConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !config.RemoteCleartextAck {
+		t.Fatalf("expected RemoteCleartextAck to be true")
+	}
+
+	t.Setenv("TENDRIL_MEMORY_REMOTE_CLEARTEXT_ACK", "")
+	config, err = LoadMemoryConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if config.RemoteCleartextAck {
+		t.Fatalf("expected RemoteCleartextAck to be false")
+	}
+}

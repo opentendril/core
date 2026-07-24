@@ -63,6 +63,10 @@ type MemoryConfig struct {
 	PineconeDimension int
 	WeaviateAPIKey    string
 	WeaviateBaseURL   string
+	// RemoteCleartextAck records that the operator has explicitly acknowledged
+	// that remote memory backends transmit memory fields to a third-party
+	// service without encryption. Required for the pinecone/weaviate backends.
+	RemoteCleartextAck bool
 }
 
 type SQLiteIndexStore struct {
@@ -414,14 +418,21 @@ func LoadMemoryConfig() (MemoryConfig, error) {
 		}
 	}
 
+	remoteAck := false
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("TENDRIL_MEMORY_REMOTE_CLEARTEXT_ACK"))) {
+	case "true", "1", "yes", "on":
+		remoteAck = true
+	}
+
 	return MemoryConfig{
-		Backend:           backend,
-		SQLitePath:        sqlitePath,
-		PineconeAPIKey:    os.Getenv("TENDRIL_PINECONE_API_KEY"),
-		PineconeBaseURL:   strings.TrimRight(os.Getenv("TENDRIL_PINECONE_BASE_URL"), "/"),
-		PineconeDimension: dimension,
-		WeaviateAPIKey:    os.Getenv("TENDRIL_WEAVIATE_API_KEY"),
-		WeaviateBaseURL:   strings.TrimRight(os.Getenv("TENDRIL_WEAVIATE_BASE_URL"), "/"),
+		Backend:            backend,
+		SQLitePath:         sqlitePath,
+		PineconeAPIKey:     os.Getenv("TENDRIL_PINECONE_API_KEY"),
+		PineconeBaseURL:    strings.TrimRight(os.Getenv("TENDRIL_PINECONE_BASE_URL"), "/"),
+		PineconeDimension:  dimension,
+		WeaviateAPIKey:     os.Getenv("TENDRIL_WEAVIATE_API_KEY"),
+		WeaviateBaseURL:    strings.TrimRight(os.Getenv("TENDRIL_WEAVIATE_BASE_URL"), "/"),
+		RemoteCleartextAck: remoteAck,
 	}, nil
 }
 
@@ -436,10 +447,24 @@ func OpenMemoryBackend(ctx context.Context, config MemoryConfig, encryptor *Encr
 		}
 		return OpenSQLiteIndexStore(ctx, config.SQLitePath, encryptor)
 	case "pinecone":
+		if !config.RemoteCleartextAck {
+			return nil, errRemoteCleartextNotAcknowledged("pinecone")
+		}
 		return NewPineconeMemoryBackend(config)
 	case "weaviate":
+		if !config.RemoteCleartextAck {
+			return nil, errRemoteCleartextNotAcknowledged("weaviate")
+		}
 		return NewWeaviateMemoryBackend(config)
 	default:
 		return nil, fmt.Errorf("unsupported memory backend %q", config.Backend)
 	}
+}
+
+func errRemoteCleartextNotAcknowledged(backend string) error {
+	return fmt.Errorf(
+		"memory backend %q sends memory titles, content, and tags unencrypted to a third-party service; "+
+			"set TENDRIL_MEMORY_REMOTE_CLEARTEXT_ACK=true to acknowledge and proceed, or use the default sqlite backend",
+		backend,
+	)
 }
